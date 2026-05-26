@@ -1,165 +1,220 @@
-# Azure Pipelines - Sync GitHub master to Azure DevOps
-# NOTE: Enable Project Settings → Pipelines → Settings → "Allow scripts to access the OAuth token"
-# so $(System.AccessToken) works for git push/fetch.
+name: Sync GitHub → Azure DevOps
 
-name: Sync-GitHub-to-Azure-DevOps
+# Mirrors the default branch of this GitHub repo to an Azure DevOps Git repo.
+#
+# Why this file exists in .github/workflows/ AND why /azure-pipelines.yml also exists:
+#   * /azure-pipelines.yml (repo root) is the canonical Azure Pipelines definition
+#     that Azure DevOps imports when you connect this GitHub repo to Pipelines.
+#     See AZURE_PIPELINE_SETUP.md.
+#   * THIS file is a GitHub-Actions-side mirror that pushes commits to Azure
+#     DevOps directly on every push to master, without requiring Azure DevOps
+#     to be wired to GitHub. It is the equivalent of the original Azure
+#     Pipelines steps, rewritten as a valid GitHub Actions workflow.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   AZURE_DEVOPS_PAT       Azure DevOps Personal Access Token with
+#                          "Code: Read & write" scope on the target project.
+#                          Replaces $(System.AccessToken) from the original
+#                          Azure Pipelines file (GitHub Actions has no
+#                          equivalent ambient token for foreign git remotes).
+#   AZURE_DEVOPS_REPO_URL  Full HTTPS clone URL of the Azure DevOps repo, e.g.
+#                          https://dev.azure.com/<org>/<project>/_git/<repo>
+#                          (URL-encode spaces in the project name as %20.)
+#
+# Optional repository variable (Settings → Secrets and variables → Actions → Variables):
+#   AZURE_DEVOPS_TARGET_BRANCH  Branch name on Azure DevOps to push to.
+#                               Defaults to 'master' to match the original
+#                               pipeline; set to 'main' if your Azure DevOps
+#                               repo uses 'main'.
 
-# Trigger on pushes to master in the connected GitHub repo
-trigger:
-  branches:
-    include:
+on:
+  push:
+    branches:
       - master
-  paths:
-    exclude:
-      - README.md
-      - .github/**
-
-# No PR triggers; this pipeline mirrors the default branch only
-pr: none
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  # Git identity for authored commits (used only for logs/consistency)
-  GIT_USER_NAME: 'Azure Pipeline Sync Bot'
-  GIT_USER_EMAIL: 'pipeline-sync@azure-devops.com'
-
-  # Source repo (for logging only)
-  GITHUB_REPO_URL: 'https://github.com/JFlo21/Generate-Weekly-PDFs-DSR-Resiliency.git'
-
-  # Target branch in Azure DevOps. Change to 'main' if needed.
-  TARGET_BRANCH: 'master'
-
-steps:
-  - checkout: self
-    persistCredentials: true
-    clean: true
-    fetchDepth: 0  # full history for accurate commit refs
-
-  - task: Bash@3
-    displayName: 'Configure Git'
+    paths-ignore:
+      - 'README.md'
+      - '.github/**'
+  workflow_dispatch:
     inputs:
-      targetType: 'inline'
-      script: |
-        set -euo pipefail
+      target_branch:
+        description: "Override Azure DevOps target branch (default: AZURE_DEVOPS_TARGET_BRANCH var or 'master')"
+        required: false
+        default: ''
 
-        echo "Configuring Git..."
-        git config --global user.name "$(GIT_USER_NAME)"
-        git config --global user.email "$(GIT_USER_EMAIL)"
+# Least-privilege: this workflow only reads the GitHub repo contents and
+# pushes to a foreign remote. It does NOT need write access to the GitHub repo.
+permissions:
+  contents: read
 
-        echo "Git version: $(git --version)"
-        echo "Build.SourceBranch: $(Build.SourceBranch)"
-        echo "Build.SourceBranchName: $(Build.SourceBranchName)"
-        echo "Current branch (may be empty if detached HEAD): $(git branch --show-current || true)"
-        echo
-        echo "Recent commits:"
-        git log --oneline -5 || true
+# Prevent overlapping syncs from racing on the Azure DevOps remote. Queued
+# (not cancelled) so every push reaches Azure DevOps in order.
+concurrency:
+  group: sync-azure-devops
+  cancel-in-progress: false
 
-  - task: Bash@3
-    displayName: 'Sync to Azure DevOps Repository'
-    inputs:
-      targetType: 'inline'
-      script: |
-        set -euo pipefail
+jobs:
+  sync:
+    name: Mirror master to Azure DevOps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
-        echo "============================================"
-        echo "Starting GitHub → Azure DevOps sync"
-        echo "============================================"
-        echo
-
-        # Require the Azure DevOps repo URL to be provided via pipeline variable 'AzureDevOpsRepoUrl'
-        if [ -z "${AZURE_DEVOPS_REPO_URL:-}" ]; then
-          echo "ERROR: AzureDevOpsRepoUrl is not set."
-          echo "Set a pipeline variable named 'AzureDevOpsRepoUrl' like:"
-          echo "  https://dev.azure.com/<org>/<project>/_git/<repo>"
-          exit 1
-        fi
-
-        echo "Source (GitHub): $(GITHUB_REPO_URL)"
-        echo "Target (Azure DevOps): ${AZURE_DEVOPS_REPO_URL}"
-        echo "Target branch: $(TARGET_BRANCH)"
-        echo
-
-        CURRENT_COMMIT="$(git rev-parse HEAD)"
-        COMMIT_AUTHOR="$(git log -1 --pretty=format:'%an')"
-        COMMIT_MESSAGE="$(git log -1 --pretty=%B)"
-
-        echo "Syncing commit:"
-        echo "  SHA:     ${CURRENT_COMMIT}"
-        echo "  Author:  ${COMMIT_AUTHOR}"
-        echo "  Message: ${COMMIT_MESSAGE}"
-        echo
-
-        # Add or update the Azure DevOps remote
-        if git remote | grep -q "^azure-devops$"; then
-          echo "Updating existing 'azure-devops' remote..."
-          git remote set-url azure-devops "${AZURE_DEVOPS_REPO_URL}"
-        else
-          echo "Adding 'azure-devops' remote..."
-          git remote add azure-devops "${AZURE_DEVOPS_REPO_URL}"
-        fi
-
-        echo
-        echo "Git remotes:"
-        git remote -v
-        echo
-
-        echo "Pushing HEAD to refs/heads/$(TARGET_BRANCH) on Azure DevOps..."
-        git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" \
-          push azure-devops HEAD:refs/heads/$(TARGET_BRANCH) --force
-
-        echo
-        echo "============================================"
-        echo "✅ Successfully synced to Azure DevOps"
-        echo "============================================"
-        echo "Synced commit: ${CURRENT_COMMIT}"
-        echo "Branch: $(TARGET_BRANCH)"
     env:
-      # Provide the OAuth token + target repo URL as environment variables
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      AZURE_DEVOPS_REPO_URL: $(AzureDevOpsRepoUrl)
+      GIT_USER_NAME: 'Azure Pipeline Sync Bot'
+      GIT_USER_EMAIL: 'pipeline-sync@azure-devops.com'
+      GITHUB_REPO_URL: 'https://github.com/${{ github.repository }}.git'
 
-  - task: Bash@3
-    displayName: 'Verify Sync'
-    inputs:
-      targetType: 'inline'
-      script: |
-        set -euo pipefail
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 is critical — a shallow clone would force-overwrite
+          # the Azure DevOps repo with a truncated history. Matches the
+          # original Azure Pipelines `fetchDepth: 0`.
+          fetch-depth: 0
+          persist-credentials: false
 
-        echo "============================================"
-        echo "Sync Verification"
-        echo "============================================"
-        echo
+      - name: Validate required secrets
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          AZURE_DEVOPS_REPO_URL: ${{ secrets.AZURE_DEVOPS_REPO_URL }}
+        run: |
+          set -euo pipefail
 
-        echo "Fetching from azure-devops/$(TARGET_BRANCH)..."
-        git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" \
-          fetch azure-devops "$(TARGET_BRANCH)"
+          missing=0
+          if [ -z "${AZURE_DEVOPS_PAT:-}" ]; then
+            echo "::error::Repository secret AZURE_DEVOPS_PAT is not set."
+            echo "::error::Create an Azure DevOps PAT with 'Code: Read & write' and add it as a GitHub Actions secret named AZURE_DEVOPS_PAT."
+            missing=1
+          fi
+          if [ -z "${AZURE_DEVOPS_REPO_URL:-}" ]; then
+            echo "::error::Repository secret AZURE_DEVOPS_REPO_URL is not set."
+            echo "::error::Set it to the full Azure DevOps clone URL, e.g. https://dev.azure.com/<org>/<project>/_git/<repo>"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
 
-        GITHUB_COMMIT="$(git rev-parse HEAD)"
-        AZURE_COMMIT="$(git rev-parse "azure-devops/$(TARGET_BRANCH)")"
+          # Make the PAT a masked secret in any subsequent log line just in
+          # case a downstream command echoes it.
+          echo "::add-mask::${AZURE_DEVOPS_PAT}"
 
-        echo "GitHub  $(TARGET_BRANCH) commit: ${GITHUB_COMMIT}"
-        echo "Azure   $(TARGET_BRANCH) commit: ${AZURE_COMMIT}"
-        echo
+      - name: Configure git identity
+        run: |
+          set -euo pipefail
+          git config --global user.name  "${GIT_USER_NAME}"
+          git config --global user.email "${GIT_USER_EMAIL}"
+          echo "Git version: $(git --version)"
+          echo "HEAD: $(git rev-parse HEAD)"
+          echo "Recent commits:"
+          git log --oneline -5 || true
 
-        if [ "${GITHUB_COMMIT}" = "${AZURE_COMMIT}" ]; then
-          echo "✅ Verification successful — commits match."
-        else
-          echo "⚠️  Warning: Commits do not match."
-          echo "    Azure DevOps may have additional commits or the push was blocked."
-          exit 1
-        fi
+      - name: Resolve target branch
+        id: target
+        env:
+          INPUT_TARGET_BRANCH: ${{ github.event.inputs.target_branch }}
+          VAR_TARGET_BRANCH: ${{ vars.AZURE_DEVOPS_TARGET_BRANCH }}
+        run: |
+          set -euo pipefail
+          branch="${INPUT_TARGET_BRANCH:-}"
+          if [ -z "$branch" ]; then
+            branch="${VAR_TARGET_BRANCH:-}"
+          fi
+          if [ -z "$branch" ]; then
+            branch="master"
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "Target Azure DevOps branch: $branch"
 
-        echo
-        echo "Verification complete."
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      - name: Push HEAD to Azure DevOps
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          AZURE_DEVOPS_REPO_URL: ${{ secrets.AZURE_DEVOPS_REPO_URL }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          set -euo pipefail
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Sync Log'
-    inputs:
-      PathtoPublish: '$(Build.SourcesDirectory)/.git/logs/HEAD'
-      ArtifactName: 'sync-log'
-      publishLocation: 'Container'
-    condition: always()
+          echo "============================================"
+          echo "Starting GitHub → Azure DevOps sync"
+          echo "============================================"
+          echo "Source (GitHub): ${GITHUB_REPO_URL}"
+          echo "Target (Azure DevOps): ${AZURE_DEVOPS_REPO_URL}"
+          echo "Target branch: ${TARGET_BRANCH}"
+          echo
+
+          CURRENT_COMMIT="$(git rev-parse HEAD)"
+          COMMIT_AUTHOR="$(git log -1 --pretty=format:'%an')"
+          COMMIT_MESSAGE="$(git log -1 --pretty=%B)"
+          echo "Syncing commit:"
+          echo "  SHA:     ${CURRENT_COMMIT}"
+          echo "  Author:  ${COMMIT_AUTHOR}"
+          echo "  Message: ${COMMIT_MESSAGE}"
+          echo
+
+          # Add or refresh the azure-devops remote. URL never carries the PAT;
+          # auth is supplied per-invocation via http.extraheader so the token
+          # cannot leak into `git remote -v` or reflog output.
+          if git remote | grep -q "^azure-devops$"; then
+            git remote set-url azure-devops "${AZURE_DEVOPS_REPO_URL}"
+          else
+            git remote add azure-devops "${AZURE_DEVOPS_REPO_URL}"
+          fi
+
+          # Azure DevOps accepts Basic auth with an empty username and the PAT
+          # as the password: "Authorization: Basic base64(':<PAT>')".
+          BASIC_AUTH="$(printf ':%s' "${AZURE_DEVOPS_PAT}" | base64 -w0 2>/dev/null || printf ':%s' "${AZURE_DEVOPS_PAT}" | base64)"
+          AUTH_HEADER="AUTHORIZATION: Basic ${BASIC_AUTH}"
+
+          # Seed lease: fetch current Azure state so --force-with-lease can
+          # detect concurrent changes and refuse to clobber them.
+          echo "Fetching current state of azure-devops/${TARGET_BRANCH}..."
+          git -c http.extraheader="${AUTH_HEADER}" \
+              fetch azure-devops "${TARGET_BRANCH}" || \
+              echo "Note: target branch ${TARGET_BRANCH} does not exist yet on Azure DevOps; will be created."
+
+          echo "Pushing HEAD → refs/heads/${TARGET_BRANCH} on Azure DevOps..."
+          git -c http.extraheader="${AUTH_HEADER}" \
+              push --force-with-lease azure-devops "HEAD:refs/heads/${TARGET_BRANCH}"
+
+          echo
+          echo "============================================"
+          echo "✅ Successfully synced to Azure DevOps"
+          echo "============================================"
+          echo "Synced commit: ${CURRENT_COMMIT}"
+          echo "Branch: ${TARGET_BRANCH}"
+
+      - name: Verify sync
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          BASIC_AUTH="$(printf ':%s' "${AZURE_DEVOPS_PAT}" | base64 -w0 2>/dev/null || printf ':%s' "${AZURE_DEVOPS_PAT}" | base64)"
+          AUTH_HEADER="AUTHORIZATION: Basic ${BASIC_AUTH}"
+
+          echo "Fetching from azure-devops/${TARGET_BRANCH}..."
+          git -c http.extraheader="${AUTH_HEADER}" \
+              fetch azure-devops "${TARGET_BRANCH}"
+
+          GITHUB_COMMIT="$(git rev-parse HEAD)"
+          AZURE_COMMIT="$(git rev-parse "azure-devops/${TARGET_BRANCH}")"
+
+          echo "GitHub  ${TARGET_BRANCH} commit: ${GITHUB_COMMIT}"
+          echo "Azure   ${TARGET_BRANCH} commit: ${AZURE_COMMIT}"
+
+          if [ "${GITHUB_COMMIT}" = "${AZURE_COMMIT}" ]; then
+            echo "✅ Verification successful — commits match."
+          else
+            echo "::warning::Commits do not match. Azure DevOps may have additional commits or the push was blocked."
+            exit 1
+          fi
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log
+          path: .git/logs/HEAD
+          if-no-files-found: ignore
+          retention-days: 14
