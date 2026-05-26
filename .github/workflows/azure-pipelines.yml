@@ -206,7 +206,11 @@ jobs:
           if [ "${GITHUB_COMMIT}" = "${AZURE_COMMIT}" ]; then
             echo "✅ Verification successful — commits match."
           else
-            echo "::warning::Commits do not match. Azure DevOps may have additional commits or the push was blocked."
+            # Hard failure: the push step exited 0 but Azure DevOps does not
+            # reflect our HEAD. Possible causes: a concurrent push to Azure
+            # DevOps landed between our --force-with-lease and this fetch,
+            # branch policies blocked the push, or the PAT lacks 'Code: Write'.
+            echo "::error::Sync verification failed: Azure DevOps HEAD (${AZURE_COMMIT}) does not match GitHub HEAD (${GITHUB_COMMIT}). Re-run the workflow; if the mismatch persists, check Azure DevOps branch policies and the AZURE_DEVOPS_PAT scope (must include Code: Read & write)."
             exit 1
           fi
 
