@@ -4603,3 +4603,141 @@ tag + `before_send` mechanism accurately.
 breadcrumb message-scrub · breadcrumb data-scrub; 2 sys.path bootstraps; 2 Copilot doc-accuracy nits). 6 gates
 green. Breadcrumb message+data scrub dummy-transport-verified. Next: push → confirm Codex's review of this tip is
 silent → merge to `master`.
+
+---
+
+## [2026-06-30 21:49] — MERGED: v1.3.1 shipped to `master` as `8c51a3c` (closes the API-resilience / PII loop)
+
+**MERGE — v1.3.1 (Smartsheet API-resilience & silent-failure/PII hardening) is MERGED to `master` as squash
+commit `8c51a3c`** (from `fix/api-resilience-silent-failures`, branch deleted on merge; `docs-changelog.yml`
+auto-logged the merge as `666e551`). This closes the forward-looking "Next: push → … merge to `master`" clause
+that ended each of the four preceding 2026-06-30 entries (17:45 main · 19:48 sys.path · 20:10 breadcrumb plane ·
+20:40 breadcrumb `data`). The work itself is documented there and is NOT repeated here — this entry only records
+that it landed.
+
+**Reviewer loop closed — 8 automated passes, every finding resolved.** 4 real Codex functional/security fixes
+(`before_send` frame scrub · attribution `unavailable`≠`no_history` · breadcrumb `message` scrub · breadcrumb
+`data` key-scrub), 2 `sys.path` test-bootstrap fixes, and 3 Copilot doc-accuracy nits (incl. the `retry.py`
+4000-vs-`InternalServerError` contract). 0 unresolved review threads; the final Copilot pass generated no new
+comments. Codex's auto-review was exhausted after 8 passes (an explicit `@codex review` drew no response), so
+the merge gate was: 0 unresolved threads + all checks green + `MERGEABLE`/`CLEAN` + Copilot's final clean pass.
+
+**LESSON — the merge gate is a whole-PR property, not a per-tip delta.** The per-push watch loop had a blind
+spot: it only inspected findings created *after each push*, so three standing Copilot `retry.py` doc threads
+raised on earlier tips stayed invisible until a full `reviewThreads(isResolved==false && isOutdated==false)`
+audit right before merge surfaced them. "No review comments" means the whole unresolved-thread SET is empty —
+audit the set, not the delta, before merging.
+
+**Verification at merge:** `run_6_gates.sh` exit 0 — G1 178 · G2 108 · G3 1149 (+130 subtests) · G4 mypy 56→56
+· G5 py_compile · G6 21-key TEST_MODE run; all three Sentry PII scrubs dummy-transport-verified. Production
+guardrails UNCHANGED (change-detection key · delete→upload order · `@cell`=0 · `PARALLEL_WORKERS≤8` ·
+filename/attachment logic).
+
+**Deferred (own PR):** retry-idempotency in `SUPABASE_HASH_STORE_AUTHORITATIVE` clean-filename mode — not
+solvable by attachment inspection; the real fix (upload-then-delete-by-attachment-age) changes the delete→upload
+guardrail.
+
+**Position:** ✅ v1.3.1 MERGED (`8c51a3c`). Closeout follow-up PR #282 bumps `.claude/project-state.md`, this
+ledger, and `docs/AI_CONTEXT_RESUME.md` to the merged state; second brain (project page, current-state,
+dashboard, log) updated the same session. Ultimate proof still pending: the next scheduled 2h production cron
+surviving a real code-4000 blip without dropping a source sheet.
+
+## [2026-07-06 14:30] Debug session opened: WR 90968595 late-arriving ProMax rows missing from main-file Excel
+
+**Symptom (operator-reported):** WR 909-685-95's current-week Excel generates, and its 7/2 snapshot rows are
+present, but rows that arrived from ProMax on **2026-07-05** (units claimed by the foreman + department
+members, dept number and "Units Completed?" checkboxes populated) are **absent — and stay absent on forced
+regeneration**. Main foreman (primary) variant affected.
+
+**Why it matters:** missing claimed units = missing billed revenue for that WR/week; regen-resistance means an
+operator cannot self-heal it with `REGEN_WEEKS`/`RESET_HASH_HISTORY`.
+
+**Diagnostic read:** regeneration bypassing change-detection but still excluding the rows implicates **row
+filtering or claim attribution upstream of grouping**, not stale hashes. Seeded hypotheses (ranked): (1) the
+parked Phase 09 frozen-claim-attribution gap — "late backfill froze wrong foreman" (Wave 5 parked); (2) helper
+dual-checkbox exclusion (both "Helping Foreman Completed Unit?" + "Units Completed?" checked → main-file
+exclusion by design); (3) Weekly Reference Logged Date vs Snapshot Date filtering dropping the 7/5 rows from
+the week-ending group.
+
+**State:** GSD debug session `.planning/debug/wr-90968595-rows-not-pulled.md` (goal: find_and_fix,
+investigation read-only, fix gated on Juan's checkpoint + full pytest). Root cause NOT yet confirmed — do not
+change grouping/attribution code from this entry alone; wait for the session's evidence-backed resolution.
+
+## [2026-07-06 15:05] RESOLVED root cause + NEW RULE: durable group hash may only advance after upload success (WR 90968595 incident)
+
+**Root cause (confirmed):** crash-consistency bug in the Sub-project E authoritative hash store. The per-group
+content hash was upserted to `billing_audit.group_content_hash` in the EMISSION loop, but attachment uploads
+run later in the deferred batch phase. Failed run **28752355941** (2026-07-05, "hosted runner lost
+communication") died after upserting hash `561017c7` for WR 90968595 / week 2026-07-05 / primary but before
+the upload phase replaced the attachment. Under `SUPABASE_HASH_STORE_AUTHORITATIVE=1` filenames are clean
+(hash-less), so the skip gate can only verify an attachment EXISTS, not that it is current → every later run:
+computed==stored + attachment exists → **skip forever**. Regeneration cannot recover by design; the 7/5 ProMax
+rows were fetched and grouped correctly every run — the file was simply never re-published. Discriminator that
+killed all other hypotheses (fetch-gate drop, frozen attribution, week-ending math, helper dual-checkbox): the
+stored hash flipped `2ececf55→561017c7` with zero generation/upload lines in any successful run's log.
+
+**RULE (billing-critical, do not regress):** the durable group hash in `billing_audit.group_content_hash` is a
+claim that "this content is what is attached in Smartsheet." It may only be written AFTER the group's
+attachment upload succeeds — never in the emission loop. `orchestrate.py` now defers upserts to
+`_deferred_hash_upserts` and flushes after the parallel upload phase, gated per group on ALL its upload legs
+returning `'uploaded'`/`'skipped'`; `'error'`, `'skip_upload'` (SKIP_UPLOAD dry-run), and missing-task cases
+WITHHOLD the hash (WARNING logged) so the group regenerates next run. Fail-safe direction: one extra
+regenerate, never a stale file reported as current. Regression guard:
+`tests/test_subproject_e_hash_store.py::TestCrashConsistencyDeferredFlush` (4 tests; ordering assertion fails
+against pre-fix code). Bonus closure: local SKIP_UPLOAD dry-runs with prod Supabase creds can no longer poison
+change detection.
+
+**One-time remediation (after the fix merges):** `workflow_dispatch` with `advanced_options` =
+`regen_weeks:070526` — bypasses the poisoned skip gate for week 07/05/26 and force-replaces attachments,
+healing WR 90968595 and any other groups the failed run poisoned. Verify the regenerated
+`WR_90968595_WeekEnding_070526` file contains the July 5th ProMax rows. (`reset_wr_list:90968595` also works
+but purges ALL weeks' attachments for that WR — broader than needed.)
+
+**Ops lesson:** a failed Actions run ("runner lost communication") can now be loud in the ledger — any group
+it emitted-but-did-not-upload was, pre-fix, permanently stale. Post-fix the withheld-hash WARNING + next-run
+regenerate make this self-healing.
+
+## [2026-07-06 20:45] Follow-up (Codex P2, PR #283): the LOCAL json hash_history obeys the same upload-success gate
+
+**Gap found in review:** the 15:05 fix deferred only the Supabase upsert. The local
+`generated_docs/hash_history.json` entry was still written in the emission loop and persisted by
+`save_hash_history` at end of run — so a withheld group (upload `'error'` or SKIP_UPLOAD dry-run) still
+advanced the json cache. The skip gate's documented decision table falls back to that json cache on a Supabase
+outage (`fetch_failure`/`unavailable`) and uses it as the sole decider when `SUPABASE_HASH_STORE_AUTHORITATIVE`
+is OFF — in either mode the stale group could be skipped as "unchanged + attachment exists," the same
+staleness one layer down.
+
+**RULE (extends the 15:05 rule):** BOTH hash layers — `billing_audit.group_content_hash` AND the local
+`hash_history` json — may only advance after ALL of the group's upload legs return `'uploaded'`/`'skipped'`.
+`orchestrate.py` collects json entries in `_deferred_history_updates` and applies them in the same
+post-upload flush, NOT gated on `SUPABASE_HASH_STORE_WRITE_ENABLED` (the json contract holds in every mode).
+TEST_MODE keeps the immediate write — no upload phase exists there and the documented intent is seeding
+future prod runs. Regression guard: the three `test_json_*` tests in
+`TestCrashConsistencyDeferredFlush` (`tests/test_subproject_e_hash_store.py`).
+
+## [2026-07-06 21:00] Review closures (PR #283): reduced_sub PPP-leg skip-gate check + repair-path hash invalidation
+
+**Gap 1 (Codex P2 + Greptile P1, pre-existing):** a `reduced_sub`/`reduced_sub_helper` group degrades to a
+single TARGET upload leg when the WR is absent from the PPP map (`_build_upload_tasks_for_group` emits one
+task), so the all-legs flush gate cannot see the never-emitted leg — the hash flushes on TARGET success, and
+once the WR later appears on the PPP sheet the skip gate ("unchanged + TARGET attachment exists") never
+publishes the PPP file until the group's content changes. **Fix (chosen over withholding, which would
+regenerate + delete/re-upload every 2h run for WRs legitimately absent from the PPP sheet):** the skip gate
+now ALSO requires the PPP attachment whenever the WR is CURRENTLY in `target_map_ppp` (uses the shared
+prefetch `attachment_cache`; per-row fallback otherwise). One regeneration converges when the WR appears; no
+churn while absent; fail-safe direction only (can force regeneration, never adds a skip).
+
+**Gap 2 (Codex P2, repair path):** withholding the new hash on upload `'error'` is insufficient when a
+forced/regen run repairs a group whose STORED hash already equals the computed one (exactly the
+`regen_weeks:070526` remediation scenario) — the stale matching hash lets the next non-forced run skip, and
+the repair never retries. **Fix:** groups withheld due to a REAL `'error'` leg now invalidate BOTH layers:
+the json entry is popped, and the durable row is overwritten with a `withheld:<hash>` sentinel via the
+existing fail-safe `upsert_group_hash` (can never equal a computed SHA256 → lookup mismatch → regenerate; the
+next successful upload overwrites it). `'skip_upload'` (SKIP_UPLOAD dry-run) does NOT invalidate — a local
+dry run must never mutate prod change-detection state in either direction.
+
+**RULE:** any future upload-outcome value must be classified into exactly one of: publish-success
+(`'uploaded'`/`'skipped'` → flush), real-failure (`'error'` → withhold + invalidate), or
+no-op (`'skip_upload'` → withhold, touch nothing). Regression guards:
+`test_skip_gate_requires_ppp_attachment_for_reduced_sub`, `test_error_legs_invalidate_both_hash_layers`
+(`tests/test_subproject_e_hash_store.py::TestCrashConsistencyDeferredFlush`).

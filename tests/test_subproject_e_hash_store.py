@@ -777,5 +777,157 @@ class TestBillingAuditImportFailureBindsWriterNone(unittest.TestCase):
         )
 
 
+class TestCrashConsistencyDeferredFlush(unittest.TestCase):
+    """2026-07-06 WR 90968595 / week 070526 incident regression guard.
+
+    The durable group hash (billing_audit.group_content_hash) must be
+    persisted ONLY after the group's attachment upload succeeds. Run
+    28752355941 (runner lost mid-run) upserted the new hash during the
+    emission loop, died before the deferred upload phase executed, and
+    left the store claiming the new content was published while
+    Smartsheet kept the stale attachment — with authoritative clean
+    (hash-less) filenames the skip gate then deadlocked on
+    "unchanged + attachment exists" on every subsequent run.
+    """
+
+    def setUp(self):
+        import pipeline.orchestrate
+        self.src = inspect.getsource(pipeline.orchestrate)
+
+    def test_emission_loop_defers_instead_of_upserting(self):
+        # The generation path appends a deferred record (still gated on
+        # the write flag); the inline upsert must not come back.
+        self.assertRegex(
+            self.src,
+            r"SUPABASE_HASH_STORE_WRITE_ENABLED[\s\S]{0,1200}"
+            r"_deferred_hash_upserts\.append\(",
+        )
+
+    def test_upsert_not_called_before_upload_phase(self):
+        # No writer upsert call may exist before the parallel upload
+        # phase begins — a crash in that window must never be able to
+        # advance the durable store.
+        _pre_upload = self.src[: self.src.index("PARALLEL UPLOAD PHASE")]
+        self.assertNotIn(
+            "_billing_audit_writer.upsert_group_hash(", _pre_upload
+        )
+
+    def test_flush_consults_upload_results(self):
+        # The only upsert call site must live after upload_results is
+        # produced by the executor.
+        _post_results = self.src[
+            self.src.index("upload_results = list("):
+        ]
+        self.assertIn(
+            "_billing_audit_writer.upsert_group_hash(", _post_results
+        )
+
+    def test_skip_upload_dry_run_withholds_hash(self):
+        # 'skip_upload' (SKIP_UPLOAD dry-run) and 'error' must NOT count
+        # as publish success — only a replaced attachment ('uploaded')
+        # or a verified-current one ('skipped') may advance the store.
+        self.assertRegex(
+            self.src,
+            r"_res in \('uploaded', 'skipped'\)",
+        )
+
+    # ── Codex P2 follow-up (PR #283): local json parity ──────────────
+    # The json hash_history cache is the skip gate's fallback on a
+    # Supabase outage and its sole source with authoritative OFF, so
+    # it must obey the SAME "advance only after upload success"
+    # contract as the durable store — otherwise a failed/dry-run
+    # upload is still skippable as "unchanged" through the fallback.
+
+    def test_json_hash_history_deferred_in_production(self):
+        # The emission loop may write hash_history immediately ONLY on
+        # the TEST_MODE branch (no upload phase exists there); the
+        # production branch must defer the entry instead.
+        _pre_upload = self.src[: self.src.index("PARALLEL UPLOAD PHASE")]
+        self.assertRegex(
+            _pre_upload,
+            r"if TEST_MODE:\s*\n\s*"
+            r"hash_history\[history_key\] = _history_entry",
+        )
+        self.assertIn(
+            "_deferred_history_updates.append(", _pre_upload,
+        )
+        # No unconditional emission-time write may come back.
+        self.assertNotRegex(
+            _pre_upload,
+            r"hash_history\[history_key\] = \{",
+        )
+
+    def test_json_flush_not_gated_on_supabase_flag(self):
+        # The json flush must run in EVERY mode — including
+        # SUPABASE_HASH_STORE_WRITE_ENABLED=false — because the json
+        # contract is independent of the durable store.
+        self.assertRegex(
+            self.src,
+            r"if _deferred_history_updates or \(",
+        )
+
+    def test_json_flush_consults_upload_results(self):
+        # The deferred json entries are applied only after
+        # upload_results exists, gated per group on _group_upload_ok.
+        _post_results = self.src[
+            self.src.index("upload_results = list("):
+        ]
+        self.assertRegex(
+            _post_results,
+            r"if not _group_upload_ok\.get\(_rec\['group_key'\]\):"
+            r"[\s\S]{0,400}"
+            r"hash_history\[_rec\['history_key'\]\] = _rec\['entry'\]",
+        )
+
+    # ── Codex P2 / Greptile P1 (PR #283): missing PPP upload leg ─────
+    # A reduced_sub group degrades to a single TARGET task when the WR
+    # is absent from the PPP map, so the all-legs flush gate cannot see
+    # the never-emitted leg. The skip gate therefore must ALSO require
+    # the PPP attachment whenever the WR is currently in the PPP map —
+    # one regeneration then converges when the WR appears there, with
+    # no churn while it is legitimately absent.
+
+    def test_skip_gate_requires_ppp_attachment_for_reduced_sub(self):
+        _pre_upload = self.src[: self.src.index("PARALLEL UPLOAD PHASE")]
+        self.assertRegex(
+            _pre_upload,
+            r"can_skip\s*\n\s*and variant in \(\s*\n\s*"
+            r"'reduced_sub', 'reduced_sub_helper',"
+            r"[\s\S]{0,300}target_map_ppp\.get\("
+            r"[\s\S]{0,600}SUBCONTRACTOR_PPP_SHEET_ID"
+            r"[\s\S]{0,600}can_skip = False",
+        )
+
+    # ── Codex P2 (PR #283): repair-path stale-hash invalidation ──────
+    # When a forced/regen run repairs a group whose stored hash already
+    # equals the computed one and the upload then FAILS, withholding
+    # the new write leaves the stale matching hash in place — the next
+    # non-forced run would skip the group and the repair never retries.
+    # Groups withheld due to a real 'error' leg must invalidate BOTH
+    # layers; SKIP_UPLOAD dry-runs must not mutate anything.
+
+    def test_error_legs_invalidate_both_hash_layers(self):
+        _post_results = self.src[
+            self.src.index("upload_results = list("):
+        ]
+        # _group_had_error is derived from 'error' results ONLY —
+        # 'skip_upload' dry-runs never invalidate.
+        self.assertRegex(
+            _post_results,
+            r"if _res == 'error':\s*\n\s*_group_had_error\[_gk\] = True",
+        )
+        # json layer: withheld-with-error pops the stale entry.
+        self.assertRegex(
+            _post_results,
+            r"if _group_had_error\.get\(_rec\['group_key'\]\):"
+            r"[\s\S]{0,200}hash_history\.pop\(",
+        )
+        # durable layer: withheld-with-error overwrites the row with a
+        # sentinel that can never equal a computed SHA256.
+        self.assertIn(
+            "'withheld:' + _rec['data_hash']", _post_results,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

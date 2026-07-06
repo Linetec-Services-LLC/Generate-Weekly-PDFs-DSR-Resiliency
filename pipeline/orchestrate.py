@@ -1080,6 +1080,27 @@ def main():  # pyright: ignore[reportGeneralTypeIssues]
         _groups_errored = 0
         _api_calls_count = 0
         _upload_tasks = []  # Collect upload tasks for parallel processing
+        # Sub-project E crash-consistency (2026-07-06): per-group durable
+        # hash upserts are DEFERRED until after this group's attachment
+        # upload actually succeeds. Records are appended in the emission
+        # loop and flushed after the parallel upload phase. Writing the
+        # hash before the upload executes lets a mid-run crash (e.g. a
+        # lost runner) mark content as published while Smartsheet still
+        # holds the stale attachment — with clean (hash-less) filenames
+        # the skip gate then deadlocks on "unchanged + attachment
+        # exists" forever (root cause of the WR 90968595 / week 070526
+        # incident, failed run 28752355941).
+        _deferred_hash_upserts = []
+        # Codex P2 (PR #283): the LOCAL json hash_history entry is
+        # deferred through the SAME gate. The json cache is the
+        # documented fallback the skip gate consults on Supabase
+        # outage (fetch_failure/unavailable) and the sole decider when
+        # authoritative mode is OFF — persisting it at emission would
+        # let a failed/dry-run upload still be skipped as "unchanged"
+        # next run through that fallback, the same staleness one layer
+        # down. TEST_MODE keeps the immediate write (no upload phase
+        # exists there; see the emission-site comment).
+        _deferred_history_updates = []
 
         _phase_group_start = datetime.datetime.now()
         _time_budget_exceeded = False
@@ -1808,6 +1829,47 @@ def main():  # pyright: ignore[reportGeneralTypeIssues]
                                 )
                                 if not has_attachment:
                                     can_skip = False
+                            # Codex P2 / Greptile P1 (PR #283):
+                            # reduced_sub groups fan out to a second
+                            # upload leg on the subcontractor PPP
+                            # sheet. When the WR was absent from the
+                            # PPP map at upload time, that leg was
+                            # never attempted — so "unchanged +
+                            # TARGET attachment exists" is not
+                            # sufficient to skip once the WR appears
+                            # on the PPP sheet. Require the PPP
+                            # attachment too whenever the WR is
+                            # CURRENTLY in the PPP map; a WR (still)
+                            # absent from the map adds no requirement,
+                            # so legitimately single-leg groups do not
+                            # churn. Fail-safe direction only: this
+                            # can force a regeneration (which uploads
+                            # both legs and converges), never add a
+                            # skip.
+                            if (
+                                can_skip
+                                and variant in (
+                                    'reduced_sub', 'reduced_sub_helper',
+                                )
+                                and target_map_ppp
+                            ):
+                                _ppp_skip_row = target_map_ppp.get(
+                                    str(wr_num)
+                                )
+                                if (
+                                    _ppp_skip_row is not None
+                                    and not _has_existing_week_attachment(
+                                        client,
+                                        SUBCONTRACTOR_PPP_SHEET_ID,
+                                        _ppp_skip_row,
+                                        str(wr_num), week_raw, variant,
+                                        file_identifier,
+                                        cached_attachments=attachment_cache.get(
+                                            _ppp_skip_row.id
+                                        ),
+                                    )
+                                ):
+                                    can_skip = False
                         if can_skip:
                             logging.info(f"⏩ Skip (unchanged + attachment exists) {variant} WR {wr_num} week {week_raw} hash {data_hash}")
                             _groups_skipped += 1
@@ -1910,8 +1972,17 @@ def main():  # pyright: ignore[reportGeneralTypeIssues]
                     )
                     _upload_tasks.extend(_new_upload_tasks)
 
-                # Update hash history with variant-aware key (even in TEST_MODE so future prod runs can leverage)
-                hash_history[history_key] = {
+                # Update hash history with variant-aware key. TEST_MODE
+                # writes immediately (documented intent: "so future
+                # prod runs can leverage"; there is no upload phase to
+                # defer against). Production defers the entry through
+                # the post-upload flush gate — the json cache is the
+                # skip gate's fallback when Supabase is unreachable and
+                # its sole source when authoritative mode is OFF, so it
+                # must obey the same "hash advances only after ALL
+                # upload legs succeed" contract as the durable store
+                # (Codex P2, PR #283).
+                _history_entry = {
                     'hash': data_hash,
                     'rows': len(group_rows),
                     'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -1920,41 +1991,48 @@ def main():  # pyright: ignore[reportGeneralTypeIssues]
                     'variant': variant,
                     'identifier': identifier,
                 }
-                history_updates += 1
+                if TEST_MODE:
+                    hash_history[history_key] = _history_entry
+                    history_updates += 1
+                else:
+                    _deferred_history_updates.append({
+                        'group_key': group_key,
+                        'history_key': history_key,
+                        'entry': _history_entry,
+                    })
 
-                # Sub-project E: shadow-write the durable per-group content
-                # hash to Supabase alongside the local json cache. Gated on
-                # SUPABASE_HASH_STORE_WRITE_ENABLED (default ON) — harmless
-                # while the store is not yet authoritative: it just populates
-                # billing_audit.group_content_hash so the eventual
-                # authoritative flip has data to read. ``upsert_group_hash``
-                # is fail-safe (returns a no-op when Supabase is unavailable /
-                # TEST_MODE and never raises); the extra guard keeps a future
-                # regression from breaking the generation path. ``week_iso``
-                # is the ISO DATE the column expects (NOT the MMDDYY
-                # week_raw), kept consistent with lookup_group_hash in the
-                # skip gate above.
+                # Sub-project E: durable per-group content hash for
+                # Supabase (billing_audit.group_content_hash). Gated on
+                # SUPABASE_HASH_STORE_WRITE_ENABLED (default ON).
+                # CRASH-CONSISTENCY (2026-07-06): the upsert is NOT
+                # executed here — the record is deferred and flushed
+                # after the parallel upload phase, and ONLY for groups
+                # whose attachment upload succeeded. The store's contract
+                # is "hash of the content currently attached in
+                # Smartsheet"; writing it before the upload executes
+                # breaks that contract on any mid-run crash and (in
+                # authoritative clean-filename mode) permanently deadlocks
+                # the skip gate for the affected group. ``week_iso`` is
+                # the ISO DATE the column expects (NOT the MMDDYY
+                # week_raw), kept consistent with lookup_group_hash in
+                # the skip gate above; it is guarded truthy because
+                # week_ending is a DATE column and an empty string would
+                # be a PostgREST type error that could trip the per-op
+                # circuit breaker.
                 if (
                     SUPABASE_HASH_STORE_WRITE_ENABLED
                     and BILLING_AUDIT_AVAILABLE
                     and not TEST_MODE
                     and week_iso
                 ):
-                    # ``week_iso`` is guarded truthy: week_ending is a DATE
-                    # column, so an empty string (missing __week_ending_date)
-                    # would be a PostgREST type error that could trip the
-                    # per-op circuit breaker. Skipping the shadow write for
-                    # such an edge-case group is harmless — the json cache
-                    # and (until authoritative) the filename hash still drive
-                    # change detection.
-                    try:
-                        _billing_audit_writer.upsert_group_hash(
-                            wr_num, week_iso, variant,
-                            identifier or '', data_hash,
-                        )
-                    except Exception:
-                        logging.exception(
-                            "E shadow hash write failed (non-fatal)")
+                    _deferred_hash_upserts.append({
+                        'group_key': group_key,
+                        'wr_num': wr_num,
+                        'week_iso': week_iso,
+                        'variant': variant,
+                        'identifier': identifier or '',
+                        'data_hash': data_hash,
+                    })
                 
             except Exception as e:
                 _groups_errored += 1
@@ -2115,6 +2193,122 @@ def main():  # pyright: ignore[reportGeneralTypeIssues]
 
             _upload_elapsed = (datetime.datetime.now() - _upload_start).total_seconds()
             logging.info(f"⚡ Upload phase complete: {_groups_uploaded} uploaded, {_upload_errors} errors in {_upload_elapsed:.1f}s (parallel w/{PARALLEL_WORKERS} workers)")
+
+            # Sub-project E crash-consistency flush (2026-07-06): persist
+            # the durable group hash ONLY for groups whose attachment
+            # upload actually completed in THIS run. Outcome semantics:
+            #   'uploaded'    -> attachment replaced, hash is now true
+            #   'skipped'     -> delete helper verified the existing
+            #                    attachment already matches this hash
+            #   'skip_upload' -> SKIP_UPLOAD dry-run: nothing published,
+            #                    hash MUST NOT advance (a dry run with
+            #                    prod Supabase creds would otherwise
+            #                    poison change detection exactly like a
+            #                    mid-run crash)
+            #   'error'       -> upload failed: withhold the hash so the
+            #                    next run regenerates and re-uploads
+            # A reduced_sub fan-out group produces TWO tasks; the hash
+            # advances only when EVERY leg succeeded. Withholding on
+            # failure fails safe: worst case is one extra regenerate +
+            # delete-then-upload next run, never a stale file reported
+            # as current. upsert_group_hash is fail-safe/no-op when
+            # Supabase is unavailable and never raises past the guard.
+            if _deferred_history_updates or (
+                SUPABASE_HASH_STORE_WRITE_ENABLED
+                and _deferred_hash_upserts
+            ):
+                _group_upload_ok: dict = {}
+                _group_had_error: dict = {}
+                for _task, _res in zip(_upload_tasks, upload_results):
+                    _gk = _task.get('group_key')
+                    _ok = _res in ('uploaded', 'skipped')
+                    _group_upload_ok[_gk] = (
+                        _group_upload_ok.get(_gk, True) and _ok
+                    )
+                    if _res == 'error':
+                        _group_had_error[_gk] = True
+                # Codex P2 (PR #283, repair-path): withholding the NEW
+                # hash is not enough when a forced/regen run was
+                # repairing a group whose STORED hash already equals
+                # the computed one (exactly the incident-remediation
+                # scenario) — if the re-upload then fails, the stale
+                # stored hash would let the next non-forced run skip
+                # the group and the repair would never retry. For
+                # groups withheld due to a REAL upload 'error' we
+                # therefore actively invalidate both layers: pop the
+                # json entry, and overwrite the durable row with a
+                # 'withheld:'-prefixed sentinel that can never equal a
+                # computed SHA256 (lookup mismatches -> regenerate;
+                # the next successful upload overwrites it).
+                # 'skip_upload' (SKIP_UPLOAD dry-run) does NOT
+                # invalidate — a local dry run must never mutate prod
+                # change-detection state in either direction.
+                # Local json cache first (Codex P2, PR #283): it is the
+                # fallback layer the skip gate consults on Supabase
+                # outage and the sole decider with authoritative OFF,
+                # so it must never advance for a withheld group. Note
+                # this flush is NOT gated on the Supabase write flag —
+                # the json contract holds in every mode.
+                _json_withheld = 0
+                for _rec in _deferred_history_updates:
+                    if not _group_upload_ok.get(_rec['group_key']):
+                        _json_withheld += 1
+                        if _group_had_error.get(_rec['group_key']):
+                            if hash_history.pop(
+                                _rec['history_key'], None,
+                            ) is not None:
+                                history_updates += 1
+                        continue
+                    hash_history[_rec['history_key']] = _rec['entry']
+                    history_updates += 1
+                if _json_withheld:
+                    logging.warning(
+                        f"⚠️ Local hash-history entry withheld for "
+                        f"{_json_withheld} group(s) whose upload did "
+                        f"not complete — they will regenerate next run"
+                    )
+                if (
+                    SUPABASE_HASH_STORE_WRITE_ENABLED
+                    and _deferred_hash_upserts
+                ):
+                    _hashes_flushed = 0
+                    _hashes_withheld = 0
+                    for _rec in _deferred_hash_upserts:
+                        if not _group_upload_ok.get(_rec['group_key']):
+                            _hashes_withheld += 1
+                            if _group_had_error.get(_rec['group_key']):
+                                try:
+                                    _billing_audit_writer.upsert_group_hash(
+                                        _rec['wr_num'], _rec['week_iso'],
+                                        _rec['variant'],
+                                        _rec['identifier'],
+                                        'withheld:' + _rec['data_hash'],
+                                    )
+                                except Exception:
+                                    logging.exception(
+                                        "E hash invalidation failed "
+                                        "(non-fatal)")
+                            continue
+                        try:
+                            _billing_audit_writer.upsert_group_hash(
+                                _rec['wr_num'], _rec['week_iso'],
+                                _rec['variant'], _rec['identifier'],
+                                _rec['data_hash'],
+                            )
+                            _hashes_flushed += 1
+                        except Exception:
+                            logging.exception(
+                                "E hash write failed (non-fatal)")
+                    if _hashes_withheld:
+                        logging.warning(
+                            f"⚠️ Durable hash withheld for {_hashes_withheld} "
+                            f"group(s) whose upload did not complete — they "
+                            f"will regenerate next run"
+                        )
+                    logging.info(
+                        f"🧾 Durable hash store: {_hashes_flushed} flushed, "
+                        f"{_hashes_withheld} withheld"
+                    )
 
         # Validation summary
         summaries = validate_group_totals(groups)
