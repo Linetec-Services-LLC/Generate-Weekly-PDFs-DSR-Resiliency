@@ -183,7 +183,10 @@ class TestAttachmentPrefetchBudget(unittest.TestCase):
         # wait (phase sub-budget) and from future.result (per-future guard).
         # If this import is removed the pre-fetch will crash on a stall
         # instead of falling back to the per-row path.
-        self.assertTrue(hasattr(generate_weekly_pdfs, 'FuturesTimeoutError'))
+        # Phase 09 W6: the consumer loop (main()) relocated to
+        # pipeline/orchestrate.py, which owns this import now.
+        import pipeline.orchestrate
+        self.assertTrue(hasattr(pipeline.orchestrate, 'FuturesTimeoutError'))
 
 
 class TestPppAttachmentPrefetchBudget(unittest.TestCase):
@@ -206,11 +209,21 @@ class TestPppAttachmentPrefetchBudget(unittest.TestCase):
 
     @staticmethod
     def _read_source() -> str:
+        # Phase 09 W6: the PPP attachment-prefetch block lives in main(),
+        # relocated to pipeline/orchestrate.py — concatenate facade +
+        # orchestrate (follow-the-code superset).
         import inspect
         import pathlib
-        return pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        import pipeline.orchestrate
+        return (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
 
     def test_constants_present(self):
         # The pre-flight guard depends on three constants — verify
@@ -234,12 +247,59 @@ class TestPppAttachmentPrefetchBudget(unittest.TestCase):
 
     def test_ppp_prefetch_targets_ppp_sheet(self):
         src = self._read_source()
-        # Worker calls Attachments.list_row_attachments with the
-        # PPP sheet id constant (not TARGET_SHEET_ID).
-        self.assertIn(
-            'list_row_attachments(SUBCONTRACTOR_PPP_SHEET_ID',
+        # The PPP worker fetches attachments from the PPP sheet (not
+        # TARGET_SHEET_ID). Post-Phase-10 the list_row_attachments call is
+        # routed through the shared retry helper (smartsheet_call_with_retry),
+        # so the sheet id is a positional arg rather than inside the
+        # method-call parens — assert on the worker body, not a single line.
+        import re
+        m = re.search(
+            r'def _fetch_ppp_row_attachments\b.*?\n(?= {16}\w)',
             src,
+            re.DOTALL,
         )
+        self.assertIsNotNone(m, 'PPP worker function body not found')
+        body = m.group(0)
+        self.assertIn('smartsheet_call_with_retry', body)
+        self.assertIn('list_row_attachments', body)
+        self.assertIn('SUBCONTRACTOR_PPP_SHEET_ID', body)
+        self.assertNotIn('TARGET_SHEET_ID', body)
+
+    def test_upload_worker_retry_is_behavior_preserving(self):
+        # Codex P2 thread (PR #281): the Excel upload worker's delete+upload is
+        # wrapped in the shared retry helper but is BEHAVIOR-PRESERVING vs the
+        # original inline loop — it passes the prefetched attachment_cache on
+        # every attempt. Strict retry idempotency is NOT achievable by
+        # attachment inspection in SUPABASE_HASH_STORE_AUTHORITATIVE
+        # clean-filename mode (ON in production), where a freshly committed file
+        # is indistinguishable from a stale same-identity one. Two unsafe
+        # approaches were tried and reverted: "live-delete-then-reupload" (data
+        # loss if the re-upload fails) and "preserve any same-identity file"
+        # (reports a stale Excel as success). This test guards against
+        # re-introducing either without the deferred upload-then-delete-by-age
+        # ordering change.
+        import re
+        src = self._read_source()
+        m = re.search(
+            r'def _do_upload_attempt\(\):.*?'
+            r'return smartsheet_call_with_retry\(',
+            src,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            m, '_do_upload_attempt body / retry wrapper not found'
+        )
+        body = m.group(0)
+        # Behavior-preserving: delete uses the prefetched cache on every attempt.
+        self.assertIn(
+            'cached_attachments=attachment_cache.get(target_row.id)', body
+        )
+        # Guard against re-introducing the unsafe retry special-cases.
+        self.assertNotIn('_has_existing_week_attachment(', body)
+        self.assertNotIn('_is_retry', body)
+        self.assertNotIn('list_row_attachments', body)
+        # The whole op is still wrapped in the shared retry helper.
+        self.assertIn('smartsheet_call_with_retry', src)
 
     def test_ppp_prefetch_uses_daemon_executor_explicit_lifecycle(self):
         src = self._read_source()

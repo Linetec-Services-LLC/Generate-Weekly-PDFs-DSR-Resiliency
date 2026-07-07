@@ -52,6 +52,7 @@ from tests.test_billing_audit_shadow import (
 
 _ensure_smartsheet_mocked()
 import generate_weekly_pdfs  # noqa: E402 — must come after mock injection
+from billing_audit.writer import ResolveOutcome  # noqa: E402
 
 
 def _safe_reload_gwp():
@@ -414,13 +415,17 @@ class TestEndToEndPipeline(unittest.TestCase):
         the frozen helper from attribution_snapshot still wins over the
         current Smartsheet value in the shadow files.
         """
+        # Phase 2 Plan 02: sub-helper path now calls resolve_claimer with
+        # prefetched_map (O(1) map read, D-03). Mock resolve_claimer to
+        # return the frozen helper for the 'helper' variant.
         with mock.patch(
-            'billing_audit.writer.lookup_attribution',
-            return_value={
-                'helper': 'OriginalForeman',
-                'helper_dept': '500',
-                'source_run_id': 'run-1234',
-            },
+            # Store reachable (status reaches resolve_claimer, not the
+            # unavailable/fetch_failure short-circuit).
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'no_row'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'OriginalForeman', 'frozen', 'success'),
         ):
             row = self._make_synth_helper_row(helper_foreman='ReplacementForeman')
             groups = generate_weekly_pdfs.group_source_rows([row])
@@ -462,13 +467,26 @@ class TestEndToEndPipeline(unittest.TestCase):
         )
 
     def test_bug_c_no_history_falls_back_to_current_helper_with_warning(self):
-        """D-12 no_history fallback + WARNING discipline."""
-        # Ensure not in fetch_failure state
-        from billing_audit import client as ba_client
-        ba_client._global_disable_reason = None
+        """D-12 no_history fallback + WARNING discipline.
+
+        Uses the REAL resolve_claimer contract: a genuine no-history row
+        returns ResolveOutcome('use', current_value, 'current', 'no_history')
+        (writer.py:1048-1049, 1060) — action is 'use', NOT 'no_history'. The
+        previous mock returned action='no_history', a value the resolver
+        never produces; it exercised an unreachable else branch and hid the
+        silent-fallback bug (the 'use' path reset the reason to None, so the
+        per-WR WARNING never fired in production).
+        """
         with mock.patch(
-            'billing_audit.writer.lookup_attribution',
-            return_value=None,
+            # Store reachable + genuinely no frozen row yet (status 'no_row'),
+            # so resolve_claimer's no_history is a REAL brand-new claim — not
+            # the unavailable short-circuit.
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'no_row'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome(
+                'use', 'ReplacementForeman', 'current', 'no_history'),
         ), self.assertLogs(level='WARNING') as log_cm:
             row = self._make_synth_helper_row()
             groups = generate_weekly_pdfs.group_source_rows([row])
@@ -478,6 +496,12 @@ class TestEndToEndPipeline(unittest.TestCase):
             warning_bodies,
         )
         self.assertIn('reason=no_history', warning_bodies)
+        # F1 follow-up: no_history is the benign brand-new-claim case (the
+        # lookup SUCCEEDED, just no frozen row yet — this run freezes it), so
+        # the remediation must NOT point operators at a Supabase PGRST outage
+        # that never happened.
+        self.assertIn('No frozen attribution', warning_bodies)
+        self.assertNotIn('PGRST', warning_bodies)
         # Row falls back to current helper
         keys = list(groups.keys())
         self.assertTrue(
@@ -486,28 +510,42 @@ class TestEndToEndPipeline(unittest.TestCase):
         )
 
     def test_bug_c_fetch_failure_falls_back_with_correct_reason(self):
-        """Distinguish no_history vs fetch_failure per D-12."""
-        from billing_audit import client as ba_client
-        ba_client._global_disable_reason = 'PGRST106'
-        try:
-            with mock.patch(
-                'billing_audit.writer.lookup_attribution',
-                return_value=None,
-            ), self.assertLogs(level='WARNING') as log_cm:
-                row = self._make_synth_helper_row()
-                generate_weekly_pdfs.group_source_rows([row])
-            warning_bodies = '\n'.join(log_cm.output)
-            self.assertIn('reason=fetch_failure', warning_bodies)
-        finally:
-            ba_client._global_disable_reason = None
+        """Distinguish no_history vs fetch_failure per D-12.
+
+        Phase 2 Plan 02 update: the sub-helper path now calls
+        resolve_claimer with prefetched_map (O(1) map read, D-03).
+        A 'hold' outcome (action='hold') signals fetch_failure and
+        triggers the D-12 fallback WARNING with reason=fetch_failure.
+        """
+        with mock.patch(
+            # Store reachable (status 'no_row' reaches resolve_claimer); the
+            # 'hold' outcome is what signals fetch_failure here — distinct from
+            # the store-level 'unavailable' short-circuit.
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'no_row'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('hold', None, None, 'fetch_failure'),
+        ), self.assertLogs(level='WARNING') as log_cm:
+            row = self._make_synth_helper_row()
+            generate_weekly_pdfs.group_source_rows([row])
+        warning_bodies = '\n'.join(log_cm.output)
+        self.assertIn('reason=fetch_failure', warning_bodies)
+        # fetch_failure IS a real PostgREST outage — keep the Supabase Logs
+        # investigation guidance (contrast with the benign no_history case).
+        self.assertIn('PGRST', warning_bodies)
 
     def test_bug_c_warning_dedupe_per_wr_helper(self):
-        """Per-WR WARNING fires ONCE per (wr, week, helper) tuple."""
-        from billing_audit import client as ba_client
-        ba_client._global_disable_reason = None
+        """Per-WR WARNING fires ONCE per (wr, week, helper) tuple.
+
+        Uses the REAL resolve_claimer contract (action='use',
+        reason='no_history') so the dedupe is verified on the path
+        production actually takes, not the unreachable else branch.
+        """
         with mock.patch(
-            'billing_audit.writer.lookup_attribution',
-            return_value=None,
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome(
+                'use', 'ReplacementForeman', 'current', 'no_history'),
         ), self.assertLogs(level='WARNING') as log_cm:
             rows = [
                 self._make_synth_helper_row(row_id=i)
@@ -539,6 +577,218 @@ class TestEndToEndPipeline(unittest.TestCase):
             any('REDUCEDSUB_HELPER_ReplacementForeman' in k for k in keys),
             f"Bug C kill-switch-off: row should go to current helper; "
             f"got: {keys}",
+        )
+
+
+class TestRpcMissingGracefulDegradation(unittest.TestCase):
+    """Phase 2 Plan 05 (CR-01): a MISSING bulk RPC (rpc_missing) degrades to
+    the per-row path instead of HOLDing every B/C/sub-helper row.
+
+    Mirrors TestEndToEndPipeline's module-state setup (subcontractor sheet,
+    variant + attribution flags enabled, seeded rate) and reuses its
+    ``_make_synth_*`` row builders via delegation. Each test mocks
+    ``prefetch_attribution`` directly to control _attr_status, and
+    ``resolve_claimer`` to make the per-row outcome deterministic.
+    """
+
+    _SUB_SHEET_ID = TestEndToEndPipeline._SUB_SHEET_ID
+
+    def setUp(self):
+        _reset_all()
+        _ensure_smartsheet_mocked()
+        self._orig_enabled = generate_weekly_pdfs.SUBCONTRACTOR_RATE_VARIANTS_ENABLED
+        self._orig_bug_a = generate_weekly_pdfs.SUBCONTRACTOR_RATE_RECALC_PREACCEPTANCE_ENABLED
+        self._orig_bug_c = generate_weekly_pdfs.SUBCONTRACTOR_HELPER_CLAIM_ATTRIBUTION_ENABLED
+        self._orig_sub_ids = set(generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS)
+        self._orig_rates = dict(generate_weekly_pdfs._SUBCONTRACTOR_RATES)
+        self._orig_fallback = generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK
+        generate_weekly_pdfs.SUBCONTRACTOR_RATE_VARIANTS_ENABLED = True
+        generate_weekly_pdfs.SUBCONTRACTOR_RATE_RECALC_PREACCEPTANCE_ENABLED = True
+        generate_weekly_pdfs.SUBCONTRACTOR_HELPER_CLAIM_ATTRIBUTION_ENABLED = True
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.clear()
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.add(self._SUB_SHEET_ID)
+        generate_weekly_pdfs._SUBCONTRACTOR_RATES['ANC-M'] = {
+            'new_install_price': 75.0,
+            'reduced_install_price': 50.0,
+            'new_remove_price': 60.0,
+            'reduced_remove_price': 45.0,
+            'new_transfer_price': 80.0,
+            'reduced_transfer_price': 55.0,
+        }
+
+    def tearDown(self):
+        generate_weekly_pdfs.SUBCONTRACTOR_RATE_VARIANTS_ENABLED = self._orig_enabled
+        generate_weekly_pdfs.SUBCONTRACTOR_RATE_RECALC_PREACCEPTANCE_ENABLED = self._orig_bug_a
+        generate_weekly_pdfs.SUBCONTRACTOR_HELPER_CLAIM_ATTRIBUTION_ENABLED = self._orig_bug_c
+        generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK = self._orig_fallback
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.clear()
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.update(self._orig_sub_ids)
+        generate_weekly_pdfs._SUBCONTRACTOR_RATES.clear()
+        generate_weekly_pdfs._SUBCONTRACTOR_RATES.update(self._orig_rates)
+        _reset_all()
+
+    # Reuse the parent's synthetic-row builders without inheriting its tests.
+    _make_synth_helper_row = TestEndToEndPipeline._make_synth_helper_row
+    _make_synth_non_helper_row = TestEndToEndPipeline._make_synth_non_helper_row
+
+    def test_rpc_missing_with_fallback_generates_sub_helper(self):
+        """rpc_missing + fallback ON: sub-helper resolves per-row and the
+        row GENERATES (no HOLD, no fetch_failure WARNING)."""
+        generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK = True
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'rpc_missing'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'FrozenHelper', 'frozen', 'success'),
+        ) as _rc:
+            row = self._make_synth_helper_row()
+            groups = generate_weekly_pdfs.group_source_rows([row])
+        # Per-row resolver WAS consulted (degrade path), not bypassed.
+        self.assertTrue(_rc.called)
+        keys = list(groups.keys())
+        self.assertTrue(
+            any('REDUCEDSUB_HELPER_FrozenHelper' in k for k in keys),
+            f"rpc_missing fallback: row should generate under the frozen "
+            f"helper; got: {keys}",
+        )
+
+    def test_rpc_missing_with_fallback_b_generates_user_variant(self):
+        """rpc_missing + fallback ON: subcontractor non-helper PRIMARY row
+        generates a _REDUCEDSUB_USER_ group (no HOLD)."""
+        generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK = True
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'rpc_missing'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'FrozenPrimary', 'frozen', 'success'),
+        ):
+            row = self._make_synth_non_helper_row()
+            row['__row_id'] = 71001
+            groups = generate_weekly_pdfs.group_source_rows([row])
+        keys = list(groups.keys())
+        self.assertTrue(
+            any('REDUCEDSUB_USER_FrozenPrimary' in k for k in keys),
+            f"rpc_missing fallback: B should emit a per-claimer primary "
+            f"group; got: {keys}",
+        )
+
+    def test_fetch_failure_still_holds_b_no_user_variant(self):
+        """fetch_failure: B HOLDs (D-04) — no _REDUCEDSUB_USER_ group emitted,
+        and resolve_claimer is NOT consulted (direct HOLD, zero RPC)."""
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'fetch_failure'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'ShouldNotAppear', 'frozen', 'success'),
+        ) as _rc:
+            row = self._make_synth_non_helper_row()
+            row['__row_id'] = 72001
+            groups = generate_weekly_pdfs.group_source_rows([row])
+        _rc.assert_not_called()
+        keys = list(groups.keys())
+        self.assertFalse(
+            any('REDUCEDSUB_USER_' in k for k in keys),
+            f"fetch_failure must HOLD the B row (no _USER_ group); got: {keys}",
+        )
+
+    def test_rpc_missing_fallback_off_holds_b(self):
+        """rpc_missing + fallback OFF: operator opted out -> B HOLDs (no
+        _REDUCEDSUB_USER_ group)."""
+        generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK = False
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'rpc_missing'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'ShouldNotAppear', 'frozen', 'success'),
+        ) as _rc:
+            row = self._make_synth_non_helper_row()
+            row['__row_id'] = 73001
+            groups = generate_weekly_pdfs.group_source_rows([row])
+        _rc.assert_not_called()
+        keys = list(groups.keys())
+        self.assertFalse(
+            any('REDUCEDSUB_USER_' in k for k in keys),
+            f"fallback-off rpc_missing must HOLD the B row; got: {keys}",
+        )
+
+    def test_wr05_fetch_failure_sub_helper_emits_warning(self):
+        """WR-05: on fetch_failure the sub-helper block sets
+        _attribution_reason='fetch_failure' so the per-WR WARNING fires,
+        WITHOUT consulting the per-row resolver (direct status thread)."""
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'fetch_failure'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'X', 'frozen', 'success'),
+        ) as _rc, self.assertLogs(level='WARNING') as log_cm:
+            row = self._make_synth_helper_row()
+            generate_weekly_pdfs.group_source_rows([row])
+        warning_bodies = '\n'.join(log_cm.output)
+        self.assertIn('reason=fetch_failure', warning_bodies)
+        self.assertIn(
+            'Subcontractor helper claim attribution fallback', warning_bodies
+        )
+        # WR-05 threads the status directly; the per-row resolver is NOT
+        # re-invoked for the strict-HOLD case.
+        _rc.assert_not_called()
+
+    def test_wr05_rpc_missing_fallback_off_sub_helper_emits_warning(self):
+        """WR-05: rpc_missing + fallback OFF also surfaces the WARNING."""
+        generate_weekly_pdfs.ATTRIBUTION_BULK_PREFETCH_FALLBACK = False
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'rpc_missing'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'X', 'frozen', 'success'),
+        ), self.assertLogs(level='WARNING') as log_cm:
+            row = self._make_synth_helper_row()
+            generate_weekly_pdfs.group_source_rows([row])
+        warning_bodies = '\n'.join(log_cm.output)
+        self.assertIn('reason=fetch_failure', warning_bodies)
+
+    def test_wr05_unavailable_sub_helper_emits_distinct_warning(self):
+        """Codex P2 (PR #281): 'unavailable' (no Supabase client) must NOT be
+        collapsed to 'no_history'. It threads the status directly (resolver not
+        consulted) and gets a config-oriented remediation — never the benign
+        no_history "this run freezes it; no action needed" text, and never the
+        fetch_failure PGRST guidance."""
+        with mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'unavailable'),
+        ), mock.patch(
+            'billing_audit.writer.resolve_claimer',
+            return_value=ResolveOutcome('use', 'X', 'frozen', 'success'),
+        ) as _rc, self.assertLogs(level='WARNING') as log_cm:
+            row = self._make_synth_helper_row()
+            generate_weekly_pdfs.group_source_rows([row])
+        warning_bodies = '\n'.join(log_cm.output)
+        self.assertIn('reason=unavailable', warning_bodies)
+        self.assertIn(
+            'Subcontractor helper claim attribution fallback', warning_bodies
+        )
+        # Config-oriented remediation, NOT the benign no_history message.
+        self.assertIn('unavailable', warning_bodies)
+        self.assertIn('SUPABASE', warning_bodies)
+        self.assertNotIn('this run freezes it', warning_bodies)
+        self.assertNotIn('reason=no_history', warning_bodies)
+        self.assertNotIn('PGRST', warning_bodies)
+        # The sub-helper block threads the status directly — resolve_claimer is
+        # NOT consulted for the 'helper' role. (The reduced_sub/B primary path
+        # legitimately calls it for its own role with use-current fallback; that
+        # availability-first behavior is unrelated and intentionally unchanged.)
+        helper_role_calls = [
+            c for c in _rc.call_args_list if c.args and c.args[0] == 'helper'
+        ]
+        self.assertEqual(
+            helper_role_calls, [],
+            "sub-helper block must thread 'unavailable' directly, not consult "
+            "resolve_claimer for the 'helper' role",
         )
 
 
@@ -833,6 +1083,9 @@ class TestHashPruneIdempotency(unittest.TestCase):
             groups[key] = [{
                 'Work Request #': wr,
                 '__source_sheet_id': 8162920222379908,
+                # Production rows always carry __variant (set at emission);
+                # the scope builder now gates on it.
+                '__variant': 'reduced_sub',
             }]
         return groups
 
@@ -1119,9 +1372,36 @@ class TestProductionCodeSiteInvariants(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        # Phase 09 W3: the Bug-A rescue gate (is_subcontractor_sheet +
+        # SUBCONTRACTOR_RATE_RECALC_PREACCEPTANCE_ENABLED + _subcontractor_
+        # rescue_price) lives inside get_all_source_rows, relocated to
+        # pipeline/fetch.py. Grep the facade + the relocated module so the
+        # production-site invariants follow the code.
+        import pipeline.fetch
+        import pipeline.grouping  # W4: group_source_rows relocated here
+        import pipeline.cleanup  # W5: cleanup_untracked_sheet_attachments relocated here
+        import pipeline.attribution  # W5: hash-prune version constants relocated here
+        cls._src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.fetch)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.grouping)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.cleanup)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.attribution)
+            ).read_text(encoding='utf-8')
+        )
 
     def test_bug_a_rescue_gate_present_in_production(self):
         """Bug A rescue gate: is_subcontractor_sheet + kill switch."""
@@ -1151,11 +1431,24 @@ class TestProductionCodeSiteInvariants(unittest.TestCase):
         )
 
     def test_bug_c_reader_invocation_site_present_in_production(self):
-        """Bug C reader invocation site."""
-        self.assertIn('lookup_attribution(', self._src)
-        self.assertIn(
-            'from billing_audit.writer import lookup_attribution',
+        """Bug C reader invocation site (Phase 2: O(1) map read from bulk prefetch)."""
+        # Phase 2 Plan 02: sub-helper attribution replaced by O(1) map read
+        # from shared _attr_map (prefetch_attribution / D-03). The old
+        # per-row lookup_attribution call is gone; resolve_claimer_sh
+        # performs the map lookup via prefetched_map=_attr_map.
+        #
+        # Phase 2 Plan 05 (CR-01): the sub-helper call now routes the
+        # prefetched map through the rpc_missing graceful-degradation gate
+        # (``None if _attr_use_per_row_fallback else _attr_map``), so the
+        # bare ``prefetched_map=_attr_map`` literal moved to the gated form.
+        # The guard's intent — the sub-helper site reads the shared map —
+        # is preserved by asserting the gated expression + the else-clause.
+        self.assertIn('_resolve_claimer_sh', self._src)
+        self.assertIn('_attr_use_per_row_fallback', self._src)
+        self.assertRegex(
             self._src,
+            r'prefetched_map=\(\s*\n?\s*None if _attr_use_per_row_fallback'
+            r'\s*\n?\s*else _attr_map',
         )
         self.assertIn('SUBCONTRACTOR_HELPER_CLAIM_ATTRIBUTION_ENABLED', self._src)
 
@@ -1180,6 +1473,66 @@ class TestProductionCodeSiteInvariants(unittest.TestCase):
             'Phase 1.1 hash-history prune',
             generate_weekly_pdfs._PII_LOG_MARKERS,
         )
+
+
+class TestSubcontractorWrScopeVariantGate(unittest.TestCase):
+    """``_build_subcontractor_wr_scope`` gates on the authoritative
+    ``__variant`` field (subcontractor variant set), not a ``'_REDUCEDSUB'``
+    key substring — mirror of the Subproject D ``_build_primary_wr_scope``
+    Codex-P1 consistency fix. A non-sub group whose claimer/helper NAME is an
+    all-caps reserved token (``REDUCEDSUB`` / ``AEPBILLABLE``) must NOT enter
+    the destructive subcontractor cleanup scope. Production rows always carry
+    ``__variant`` (set at the ``group_source_rows`` emission site)."""
+
+    def test_collects_all_subcontractor_variants(self):
+        groups = {
+            '041926_111_REDUCEDSUB': [
+                {'Work Request #': '111', '__variant': 'reduced_sub'}],
+            '041926_222_AEPBILLABLE': [
+                {'Work Request #': '222', '__variant': 'aep_billable'}],
+            '041926_333_REDUCEDSUB_HELPER_H': [
+                {'Work Request #': '333', '__variant': 'reduced_sub_helper'}],
+            '041926_444_AEPBILLABLE_HELPER_H': [
+                {'Work Request #': '444', '__variant': 'aep_billable_helper'}],
+            '041926_555_REDUCEDSUB_USER_C': [
+                {'Work Request #': '555', '__variant': 'reduced_sub'}],
+        }
+        scope = generate_weekly_pdfs._build_subcontractor_wr_scope(groups)
+        self.assertEqual(scope, {'111', '222', '333', '444', '555'})
+
+    def test_excludes_non_subcontractor_variants(self):
+        groups = {
+            '041926_666_USER_Claimer': [
+                {'Work Request #': '666', '__variant': 'primary'}],
+            '041926_777_VACCREW_Vic': [
+                {'Work Request #': '777', '__variant': 'vac_crew'}],
+            '041926_888_HELPER_Help': [
+                {'Work Request #': '888', '__variant': 'helper'}],
+        }
+        scope = generate_weekly_pdfs._build_subcontractor_wr_scope(groups)
+        self.assertEqual(scope, set())
+
+    def test_rejects_pathological_reducedsub_name(self):
+        # Primary claimer literally named "REDUCEDSUB" → key contains the
+        # _REDUCEDSUB substring, but __variant is 'primary'. The variant gate
+        # must exclude it; the genuine sub group must still be collected.
+        groups = {
+            '041926_999_USER_REDUCEDSUB': [
+                {'Work Request #': '999', '__variant': 'primary'}],
+            '041926_123_REDUCEDSUB': [
+                {'Work Request #': '123', '__variant': 'reduced_sub'}],
+        }
+        scope = generate_weekly_pdfs._build_subcontractor_wr_scope(groups)
+        self.assertIn('123', scope)
+        self.assertNotIn(
+            '999', scope,
+            "a non-sub group whose claimer name contains 'REDUCEDSUB' must "
+            "NOT enter the subcontractor cleanup scope (variant gate)",
+        )
+
+    def test_empty_groups(self):
+        self.assertEqual(
+            generate_weekly_pdfs._build_subcontractor_wr_scope({}), set())
 
 
 if __name__ == '__main__':

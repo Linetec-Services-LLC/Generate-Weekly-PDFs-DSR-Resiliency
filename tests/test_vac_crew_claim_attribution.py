@@ -122,7 +122,7 @@ class TestVacCrewPrePassConcurrency(unittest.TestCase):
         _reset_all()
 
     def test_fifty_rows_each_partition_to_their_own_claimer(self):
-        def _resolve(variant, current, *, wr, week_ending, row_id, enabled):
+        def _resolve(variant, current, *, wr, week_ending, row_id, enabled, prefetched_map=None):
             return ResolveOutcome('use', f'Crew{row_id}', 'frozen', 'success')
         rows = [_make_vac_row(row_id=7000 + i) for i in range(50)]
         with mock.patch('billing_audit.writer.resolve_claimer', side_effect=_resolve):
@@ -187,9 +187,18 @@ class TestVacCrewEmission(unittest.TestCase):
 class TestVacCrewIdentitySitesAndDisplay(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        # Phase 09 W6: main() relocated to pipeline/orchestrate.py — grep
+        # facade + orchestrate (follow-the-code superset).
+        import pipeline.orchestrate
+        cls._src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
 
     def test_current_keys_site_carries_vac_claimer(self):
         # Site 3: the hash-prune current_keys reconstruction must derive the
@@ -460,10 +469,18 @@ class TestVacCrewLegacyCleanup(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_scope_builder_collects_vac_wrs(self):
-        """_build_vac_crew_wr_scope extracts WR# from VACCREW groups only."""
+        """_build_vac_crew_wr_scope extracts WR# from vac_crew groups only.
+
+        Gates on the authoritative ``__variant`` field (set at emission),
+        not a ``'_VACCREW'`` key substring — mirrors ``_build_primary_wr_scope``
+        (Subproject D) so a non-vac name containing a reserved token cannot
+        false-positive. Production rows always carry ``__variant``.
+        """
         groups = {
-            '041926_91467680_VACCREW_John': [{'Work Request #': '91467680'}],
-            '041926_55555_REDUCEDSUB_USER_X': [{'Work Request #': '55555'}],
+            '041926_91467680_VACCREW_John': [
+                {'Work Request #': '91467680', '__variant': 'vac_crew'}],
+            '041926_55555_REDUCEDSUB_USER_X': [
+                {'Work Request #': '55555', '__variant': 'reduced_sub'}],
         }
         scope = generate_weekly_pdfs._build_vac_crew_wr_scope(groups)
         self.assertIn('91467680', scope)
@@ -474,13 +491,37 @@ class TestVacCrewLegacyCleanup(unittest.TestCase):
         self.assertEqual(generate_weekly_pdfs._build_vac_crew_wr_scope({}), set())
 
     def test_scope_builder_ignores_helper_and_primary_keys(self):
-        """Non-VACCREW group keys are excluded from the vac scope."""
+        """Non-vac_crew variants are excluded from the vac scope."""
         groups = {
-            '041926_11111_HELPER_Alice': [{'Work Request #': '11111'}],
-            '041926_22222': [{'Work Request #': '22222'}],
+            '041926_11111_HELPER_Alice': [
+                {'Work Request #': '11111', '__variant': 'helper'}],
+            '041926_22222': [
+                {'Work Request #': '22222', '__variant': 'primary'}],
         }
         scope = generate_weekly_pdfs._build_vac_crew_wr_scope(groups)
         self.assertEqual(scope, set())
+
+    def test_scope_builder_rejects_pathological_vaccrew_name(self):
+        """A helper/primary whose NAME is the all-caps reserved token
+        ``VACCREW`` produces a key containing the ``_VACCREW`` substring,
+        but its ``__variant`` is not ``vac_crew`` — the variant gate must
+        exclude it from the destructive vac cleanup scope (mirror of the
+        Subproject D Codex-P1 fix)."""
+        groups = {
+            # Helper literally named "VACCREW" → key has the _VACCREW substring.
+            '041926_33333_HELPER_VACCREW': [
+                {'Work Request #': '33333', '__variant': 'helper'}],
+            # Genuine vac group → must still be collected.
+            '041926_44444_VACCREW_Real_Vac': [
+                {'Work Request #': '44444', '__variant': 'vac_crew'}],
+        }
+        scope = generate_weekly_pdfs._build_vac_crew_wr_scope(groups)
+        self.assertIn('44444', scope)
+        self.assertNotIn(
+            '33333', scope,
+            "a non-vac group whose name contains 'VACCREW' must NOT enter "
+            "the vac cleanup scope (variant gate, not substring scan)",
+        )
 
     # ------------------------------------------------------------------
     # Legacy bare _VacCrew deletion + live per-claimer exemption
@@ -597,9 +638,17 @@ class TestVacCrewLegacyCleanup(unittest.TestCase):
         cleanup_untracked_sheet_attachments(...)) rather than the
         function-signature occurrence.
         """
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        # Phase 09 W6: the TARGET call site lives in main() (orchestrate.py).
+        import pipeline.orchestrate
+        src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
         # The TARGET call site must gate the vac scope on the kill switch.
         self.assertIn(
             'VAC_CREW_LEGACY_CLEANUP_ENABLED',
@@ -691,7 +740,13 @@ class TestVacCrewHashPrune(unittest.TestCase):
         _ensure_smartsheet_mocked()
 
     def _groups(self, wrs):
-        return {f"041926_{wr}_VACCREW_John": [{'Work Request #': wr}] for wr in wrs}
+        # Production rows always carry __variant (set at emission); the scope
+        # builder gates on it, so synthetic prune fixtures must include it.
+        return {
+            f"041926_{wr}_VACCREW_John": [
+                {'Work Request #': wr, '__variant': 'vac_crew'}]
+            for wr in wrs
+        }
 
     def test_drops_legacy_vaccrew_orphans_returns_true(self):
         hist = {
@@ -718,7 +773,18 @@ class TestVacCrewHashPrune(unittest.TestCase):
         self.assertIn('Vac crew hash-history prune', generate_weekly_pdfs._PII_LOG_MARKERS)
 
     def test_call_site_present_and_wired_to_migration_dirty(self):
-        src = pathlib.Path(inspect.getsourcefile(generate_weekly_pdfs)).read_text(encoding='utf-8')
+        # W5: VAC_CREW_HASH_PRUNE_VERSION + _run_vac_crew_hash_prune relocated
+        # to pipeline/attribution.py — grep facade (call site) + relocated
+        # module (constant) so the source guard follows the code.
+        import pipeline.attribution
+        import pipeline.orchestrate  # W6: call site lives in main()
+        src = (
+            pathlib.Path(inspect.getsourcefile(generate_weekly_pdfs)).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(inspect.getsourcefile(pipeline.attribution)).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(inspect.getsourcefile(pipeline.orchestrate)).read_text(encoding='utf-8')
+        )
         self.assertIn('_run_vac_crew_hash_prune(hash_history, groups)', src)
         self.assertRegex(src, r'(?m)^VAC_CREW_HASH_PRUNE_VERSION = 1$')
 
@@ -734,7 +800,7 @@ class TestVacCrewEndToEnd(unittest.TestCase):
         _reset_all()
 
     def test_two_claimers_same_wr_week_coexist(self):
-        def _resolve(variant, current, *, wr, week_ending, row_id, enabled):
+        def _resolve(variant, current, *, wr, week_ending, row_id, enabled, prefetched_map=None):
             return ResolveOutcome('use', 'CrewA' if row_id == 6001 else 'CrewB', 'frozen', 'success')
         with mock.patch('billing_audit.writer.resolve_claimer', side_effect=_resolve):
             groups = generate_weekly_pdfs.group_source_rows(
@@ -759,7 +825,20 @@ class TestVacCrewEndToEnd(unittest.TestCase):
 class TestVacCrewProductionInvariants(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._src = pathlib.Path(inspect.getsourcefile(generate_weekly_pdfs)).read_text(encoding='utf-8')
+        # W4: group_source_rows relocated to pipeline/grouping.py — grep
+        # facade + relocated module so the source guards follow the code.
+        import pipeline.grouping
+        import pipeline.attribution  # W5: hash-prune version constant relocated here
+        import pipeline.orchestrate  # W6: prune call site lives in main()
+        cls._src = (
+            pathlib.Path(inspect.getsourcefile(generate_weekly_pdfs)).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(inspect.getsourcefile(pipeline.grouping)).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(inspect.getsourcefile(pipeline.attribution)).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(inspect.getsourcefile(pipeline.orchestrate)).read_text(encoding='utf-8')
+        )
 
     def test_prepass_present(self):
         self.assertIn('_vac_crew_claimer_map', self._src)
@@ -851,7 +930,8 @@ class TestVacCrewReviewFixes(unittest.TestCase):
         # Guard: with the kill switch ON, the prune still drops legacy orphans.
         generate_weekly_pdfs.VAC_CREW_CLAIM_ATTRIBUTION_ENABLED = True
         hist = {'91467680|041926|vac_crew|': {'hash': 'h1'}}
-        groups = {'041926_91467680_VACCREW_CrewA': [{'Work Request #': '91467680'}]}
+        groups = {'041926_91467680_VACCREW_CrewA': [
+            {'Work Request #': '91467680', '__variant': 'vac_crew'}]}
         changed = generate_weekly_pdfs._run_vac_crew_hash_prune(hist, groups)
         self.assertIs(changed, True)
         self.assertNotIn('91467680|041926|vac_crew|', hist)
@@ -869,3 +949,56 @@ class TestVacCrewReviewFixes(unittest.TestCase):
             any('REDUCEDSUB' in k or 'AEPBILLABLE' in k for k in groups),
             f"vac row on a sub sheet must not emit subcontractor variants; got {list(groups)}",
         )
+
+
+class TestBulkFetchFailureDirectHoldC(unittest.TestCase):
+    """Phase 2 BLOCKER 1: under a bulk fetch_failure, the C (vac_crew)
+    pre-pass must set the per-row outcome to HOLD DIRECTLY — without calling
+    _lookup_attribution_all (zero additional Supabase calls).
+
+    RED before Task 2 (no 'fetch_failure' branch in the current C block).
+    GREEN after Task 2 wires the direct-HOLD path in the C pre-pass block.
+    """
+
+    def setUp(self):
+        _ensure_smartsheet_mocked()
+        _reset_all()
+        self._saved = {
+            'vac_attr': generate_weekly_pdfs.VAC_CREW_CLAIM_ATTRIBUTION_ENABLED,
+            'avail': generate_weekly_pdfs.BILLING_AUDIT_AVAILABLE,
+            'sub_ids': set(generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS),
+        }
+        generate_weekly_pdfs.VAC_CREW_CLAIM_ATTRIBUTION_ENABLED = True
+        generate_weekly_pdfs.BILLING_AUDIT_AVAILABLE = True
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.clear()
+
+    def tearDown(self):
+        generate_weekly_pdfs.VAC_CREW_CLAIM_ATTRIBUTION_ENABLED = self._saved['vac_attr']
+        generate_weekly_pdfs.BILLING_AUDIT_AVAILABLE = self._saved['avail']
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.clear()
+        generate_weekly_pdfs._FOLDER_DISCOVERED_SUB_IDS.update(self._saved['sub_ids'])
+
+    def test_bulk_fetch_failure_c_direct_hold_zero_supabase_calls(self):
+        """BLOCKER 1: C pre-pass under fetch_failure produces HOLD outcomes with
+        zero _lookup_attribution_all calls.
+
+        Pre-Task-2 (RED): the C block calls resolve_claimer without prefetched_map
+        (per-row RPC), which would invoke _lookup_attribution_all per row.
+        Post-Task-2 (GREEN): the fetch_failure branch constructs
+        ResolveOutcome('hold', None, None, 'fetch_failure') DIRECTLY.
+        """
+        import billing_audit.writer as _baw
+
+        row = _make_vac_row(wr='91467680')
+        row['__row_id'] = 7777
+
+        with mock.patch.object(
+            _baw, '_lookup_attribution_all'
+        ) as _mock_lookup, mock.patch(
+            'billing_audit.writer.prefetch_attribution',
+            return_value=({}, 'fetch_failure'),
+        ):
+            generate_weekly_pdfs.group_source_rows([row])
+
+        # BLOCKER 1: _lookup_attribution_all must NOT be called on the failure path.
+        _mock_lookup.assert_not_called()

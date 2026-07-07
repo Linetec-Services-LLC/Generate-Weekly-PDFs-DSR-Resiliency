@@ -837,6 +837,125 @@ def _lookup_attribution_all(
         return None, "fetch_failure"
 
 
+def prefetch_attribution(
+    pairs: "set[tuple[str, datetime.date]]",
+) -> "tuple[dict[tuple[str, datetime.date, int], dict], str]":
+    """Bulk-load frozen attribution for the run's (wr, week_ending) set.
+
+    Phase 2 (2026-05-26). Returns a ``((wr, week_ending, smartsheet_row_id)
+    -> roles-dict, status)`` tuple.
+    status in {'success', 'no_row', 'fetch_failure', 'rpc_missing',
+    'unavailable'}.
+
+    rpc_missing = the lookup_attribution_bulk RPC is not deployed (PGRST202);
+    the caller may degrade to the per-row lookup_attribution path
+    (correctness-preserving — the deployed per-row RPC returns the SAME frozen
+    data, just slower). fetch_failure = a transient outage; the caller
+    preserves the D-04 HOLD contract for B/C.
+
+    Fail-safe: NEVER raises; a Supabase failure returns ({}, 'fetch_failure')
+    so resolve_claimer applies each variant's documented fallback.
+
+    TOTAL-FAILURE CONTRACT (D-04): the function signals total failure ONLY via
+    the RETURN status 'fetch_failure' (with an empty map). It does NOT re-issue
+    any RPC. The CALLER inspects this status and applies each variant's policy
+    DIRECTLY (B/C construct a HOLD ResolveOutcome; D uses-current) — the caller
+    must NEVER fall back to the per-row resolve_claimer RPC path on failure, or
+    an outage becomes a per-row retry storm.
+
+    Reuses with_retry(op="lookup_attribution_bulk") — DISTINCT op id so a
+    bulk-read outage cannot disable freeze_attribution / pipeline_run_* /
+    lookup_attribution / lookup_group_hash (op-isolation, D-13).
+    """
+    if not pairs:
+        return {}, "no_row"
+
+    from billing_audit import client as _client_mod
+
+    client = get_client()
+    if client is None:
+        if _client_mod._global_disable_reason is not None:
+            return {}, "fetch_failure"
+        return {}, "unavailable"
+
+    # Chunk pairs (≤ 500/payload — ~45 bytes/pair; 500 is two orders of
+    # magnitude under the ~1 MB PostgREST body limit; T-02-05 accept).
+    _CHUNK_SIZE = 500
+    pair_list = list(pairs)
+    chunks = [pair_list[i:i + _CHUNK_SIZE]
+              for i in range(0, len(pair_list), _CHUNK_SIZE)]
+
+    result_map: "dict[tuple[str, datetime.date, int], dict]" = {}
+    overall_status = "no_row"
+
+    for chunk in chunks:
+        payload = [
+            {"wr": _WR_SANITIZE.sub("_", str(wr).split(".")[0])[:50],
+             "week_ending": we.isoformat()}
+            for wr, we in chunk
+        ]
+
+        def _invoke(_p=payload):
+            return (
+                client.schema("billing_audit")
+                .rpc("lookup_attribution_bulk", {"p_wr_weeks": _p})
+                .execute()
+            )
+
+        try:
+            result = with_retry(_invoke, op="lookup_attribution_bulk")
+            if result is None:
+                # with_retry swallows the APIError and returns only None,
+                # discarding the reason_code. CR-01 (Plan 05): distinguish a
+                # MISSING RPC (PGRST202 "function not found" — permanent, the
+                # caller can degrade to the deployed per-row path) from a
+                # transient outage (the caller preserves the D-04 HOLD).
+                # Bounded probe: ONE extra call only on the already-failed
+                # path, so it cannot reintroduce the per-row storm. Fail-safe
+                # default: anything not provably PGRST202 -> fetch_failure.
+                try:
+                    from postgrest import APIError as _APIError
+                except Exception:  # postgrest absent / import shape changed
+                    _APIError = ()
+                try:
+                    _invoke()
+                    # Re-invoke succeeded where with_retry didn't — treat the
+                    # original failure as transient (do NOT claim rpc_missing).
+                    return {}, "fetch_failure"
+                except Exception as _probe_exc:
+                    if isinstance(_probe_exc, _APIError) and (
+                        _client_mod._classify_postgrest_error(_probe_exc)[2]
+                        == "PGRST202"
+                    ):
+                        return {}, "rpc_missing"
+                    return {}, "fetch_failure"
+            data = getattr(result, "data", None) or []
+            if isinstance(data, dict):
+                data = [data] if data else []
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    key = (
+                        str(row["wr"]),
+                        datetime.date.fromisoformat(str(row["week_ending"])),
+                        int(row["smartsheet_row_id"]),
+                    )
+                except (KeyError, ValueError, TypeError):
+                    continue
+                result_map[key] = row
+            if data:
+                overall_status = "success"
+        except Exception:
+            logging.warning(
+                "⚠️ Attribution bulk prefetch hit an unexpected error; "
+                "treating as fetch_failure (HOLD for B/C, use-current for D)."
+            )
+            return {}, "fetch_failure"
+
+    return result_map, overall_status
+
+
 class ResolveOutcome(NamedTuple):
     """Result of resolving the claiming foreman for ONE row.
 
@@ -874,6 +993,7 @@ def resolve_claimer(
     week_ending: datetime.date | None,
     row_id: int,
     enabled: bool,
+    prefetched_map: "dict | None" = None,
 ) -> ResolveOutcome:
     """Resolve the claiming foreman for ONE row (Foundation A contract).
 
@@ -886,11 +1006,40 @@ def resolve_claimer(
     HOLD is returned ONLY on a genuine outage (``fetch_failure``); a
     brand-new claim (``no_history``) uses the current value because
     this run is what freezes it.
+
+    D-03: when ``prefetched_map`` is provided (not None), the (wr,
+    week_ending, row_id) key is looked up O(1) from the preloaded map
+    instead of issuing a per-row RPC. The (row, status) shape is
+    identical to ``_lookup_attribution_all`` so the decision table
+    below is unchanged.
+
+    D-04 TOTAL-FAILURE CONTRACT: On a total bulk-load failure the
+    CALLER does NOT pass prefetched_map and does NOT re-invoke this
+    resolver — it constructs the per-variant fetch_failure outcome
+    DIRECTLY (B/C: ResolveOutcome('hold', None, None, 'fetch_failure');
+    D: use-current) so an outage triggers ZERO additional Supabase calls.
     """
     if not enabled:
         return ResolveOutcome("use", current_value, "current", "disabled")
 
-    row, status = _lookup_attribution_all(wr, week_ending, row_id)
+    # D-03: O(1) map read when a preloaded map is provided. Same (row, status)
+    # shape as _lookup_attribution_all so the decision table below is unchanged.
+    if prefetched_map is not None:
+        # WR-01: prefetch_attribution builds the map key from the SANITIZED
+        # WR (the RPC echoes back s.wr, which freeze_row wrote sanitized), so
+        # the lookup key MUST be sanitized identically or a valid frozen
+        # claimer is silently dropped (split-brain). Numeric WR#s are a no-op
+        # under _WR_SANITIZE so production data is unaffected. Per CLAUDE.md
+        # [2026-04-23 18:25]: every downstream consumer of the identifier MUST
+        # consume the sanitized value.
+        _wr_key = _WR_SANITIZE.sub("_", str(wr).split(".")[0])[:50]
+        _key = (_wr_key, week_ending, row_id) if (week_ending and row_id) else None
+        if _key is not None and _key in prefetched_map:
+            row, status = prefetched_map[_key], "success"
+        else:
+            row, status = None, "no_row"
+    else:
+        row, status = _lookup_attribution_all(wr, week_ending, row_id)
     if status == "unavailable":
         return ResolveOutcome("use", current_value, "current", "disabled")
     if status == "fetch_failure":
@@ -990,3 +1139,126 @@ def lookup_attribution(
     # Preserve the historical helper-gated contract: callers of this
     # public function get the row only when a helper is present.
     return row if row.get("helper") else None
+
+
+def lookup_group_hash(wr, week_ending, variant, identifier):
+    """Read the durable per-group content hash from Supabase.
+
+    Sub-project E (2026-05-25). Returns a ``(content_hash | None,
+    status)`` tuple where status is one of:
+
+    - ``'success'``      : a row exists; content_hash is its stored
+                           hash (may be None only if the column were
+                           ever NULL, which the NOT NULL schema
+                           prevents).
+    - ``'no_row'``       : the query succeeded with zero rows — this
+                           group has never been stored. Consumers
+                           regenerate (the safe default).
+    - ``'fetch_failure'``: the call failed — retries exhausted /
+                           permanent error / run-global kill tripped.
+                           Consumers fall back to the json cache.
+    - ``'unavailable'``  : no client (TEST_MODE / missing creds) and
+                           NOT an outage. Consumers fall back to json.
+
+    Keyed on the same 4-tuple as the engine's ``history_key``
+    (``f"{wr}|{week}|{variant}|{identifier}"``). Shares the
+    ``with_retry`` / per-op circuit breaker / run-global kill switch
+    used by the rest of this module via the ``op="lookup_group_hash"``
+    identifier (DISTINCT from the attribution / pipeline_run ops so a
+    hash-store outage cannot cascade into disabling those writers).
+    NEVER raises — a Supabase failure degrades to ``fetch_failure``
+    so the caller regenerates rather than mis-skips.
+    """
+    from billing_audit import client as _client_mod
+
+    client = get_client()
+    if client is None:
+        if _client_mod._global_disable_reason is not None:
+            return None, "fetch_failure"
+        return None, "unavailable"
+
+    def _op():
+        return (
+            client.schema("billing_audit")
+            .table("group_content_hash")
+            .select("content_hash")
+            .eq("wr", str(wr))
+            .eq("week_ending", str(week_ending))
+            .eq("variant", str(variant))
+            .eq("identifier", identifier or "")
+            .limit(1)
+            .execute()
+        )
+
+    try:
+        resp = with_retry(_op, op="lookup_group_hash")
+        if resp is None:
+            return None, "fetch_failure"
+        data = getattr(resp, "data", None)
+        if isinstance(data, dict):
+            data = [data] if data else []
+        rows = data or []
+        if not rows:
+            return None, "no_row"
+        first = rows[0]
+        if isinstance(first, dict):
+            return first.get("content_hash"), "success"
+        return None, "no_row"
+    except Exception:
+        # Belt-and-suspenders: this reader MUST NEVER raise. Map any
+        # unexpected failure to fetch_failure so the skip gate falls
+        # back to the json cache / regenerates. ``with_retry`` already
+        # absorbs the classified PostgREST surface (returning None), so
+        # this handler only fires on an unexpected local error (e.g.
+        # result-object handling) whose traceback carries no row content
+        # — logging.exception aids diagnosis while staying PII-safe.
+        logging.exception(
+            "⚠️ Group-hash lookup hit an unexpected error; "
+            "treating as fetch_failure (fall back to json cache)."
+        )
+        return None, "fetch_failure"
+
+
+def upsert_group_hash(wr, week_ending, variant, identifier, content_hash):
+    """Best-effort durable write of a per-group content hash.
+
+    Sub-project E (2026-05-25). Fail-safe: catches its own errors and
+    NEVER raises (mirrors ``freeze_row`` / ``emit_run_fingerprint``),
+    so a Supabase problem can never break the billing pipeline. Keyed
+    on the 4-tuple PK ``(wr, week_ending, variant, identifier)`` — the
+    same identity as the engine's ``history_key``. ``identifier`` is
+    normalized to ``''`` for bare-primary / legacy-shape groups so the
+    NOT NULL DEFAULT '' column stays consistent with the reader.
+    """
+    client = get_client()
+    if client is None:
+        return
+    payload = {
+        "wr": str(wr),
+        "week_ending": str(week_ending),
+        "variant": str(variant),
+        "identifier": identifier or "",
+        "content_hash": content_hash,
+    }
+
+    def _op():
+        return (
+            client.schema("billing_audit")
+            .table("group_content_hash")
+            .upsert(payload, on_conflict="wr,week_ending,variant,identifier")
+            .execute()
+        )
+
+    try:
+        with_retry(_op, op="upsert_group_hash")
+    except Exception:
+        # Fail-safe (Spec §8): a durable-write failure is non-fatal.
+        # The json cache + filename-hash backstop still protect change
+        # detection. ``with_retry`` absorbs the classified PostgREST
+        # surface, so this only fires on an unexpected local error;
+        # logging.exception surfaces WHY the durable store isn't being
+        # populated (PII-safe — no row content in the traceback).
+        logging.exception(
+            "⚠️ Group-hash upsert failed (non-fatal); "
+            "durable store not updated this run."
+        )

@@ -29,6 +29,73 @@ The production Smartsheet → Excel → Smartsheet attachment pipeline runs ever
 **Every change in this project's roadmap must preserve that pipeline's
 correctness and stay inside its 195-minute Actions timeout budget.**
 
+## Current Milestone: v1.2 smartsheet-python-sdk 4.0.0 Compatibility Migration
+
+**Goal:** Make the production Python billing engine compatible with
+`smartsheet-python-sdk` 4.0.0 and lift the temporary `<4.0.0` pin (hotfix
+260608-gwm / PR #273) — with **zero behavior change** to the
+Smartsheet → Excel → Smartsheet pipeline. Compat-only; not a redesign.
+
+**Why now:** SDK 4.0.0 (published 2026-06-08) is a breaking major that
+restructured `smartsheet.exceptions` (crashing `generate_weekly_pdfs.py:28`
+on CI's fresh `pip install`). The emergency hotfix pins `>=3.1.0,<4.0.0`;
+this milestone does the deliberate, tested migration so the pin can be lifted
+without a transitive auto-upgrade surprise.
+
+**Target features (compat-only, additive):**
+- Reconcile the Smartsheet exception-class imports + retry blocks
+  (`generate_weekly_pdfs.py:28`, the retry handlers, and the
+  `smartsheet.smartsheet` re-export workaround at lines 30-54) with 4.0.0's
+  module layout.
+- Verify every in-use SDK call site against 4.0.0 signatures: `Sheets.get_sheet`
+  (`include=`/`row_numbers=`), `Attachments.list_row_attachments` /
+  `delete_attachment` / `attach_file_to_row`, `Folders.get_folder_children`
+  (`last_key` token pagination — already 4.0-aligned).
+- Update test mocks/fixtures for any relocated symbols
+  (`tests/test_billing_audit_shadow.py`, pagination tests) and pass the full
+  `pytest tests/` suite under 4.0.0.
+- Lift the `<4.0.0` pin in `requirements.txt` only after compat is proven.
+
+**Scope guard:** No optimization/redesign of the billing workflow (user chose
+compat-only over "comprehensive rework"). Preserve the pipeline per CLAUDE.md
+"additive logic only".
+
+**Phase numbering:** continues from v1.1 — this milestone is **Phase 08**.
+v1.1 phase artifacts (Phases 03–07) are intentionally preserved (v1.1 was not
+formally archived via `/gsd-complete-milestone`; it has pending Phase 06 manual
+UAT).
+
+## Previous Milestone: v1.1 Portal — Supabase-native Artifact Portal (Shipped 2026-06-03)
+
+**Goal:** Replace the Express backend with a Supabase-native architecture so the
+billing team can browse, search/filter, and download generated Excel billing
+artifacts from a fast, beautiful, secure, auth-gated portal linked from another
+site — with zero change to the production Python billing pipeline.
+
+**Target features:**
+- Supabase-native data layer — an **additive** GitHub Actions step pushes each
+  generated Excel to Supabase Storage and upserts per-artifact metadata
+  (`work_request`, `week_ending`, `variant`, `filename`, `storage_path`,
+  `size_bytes`, `sha256`, `run_id`, `created_at`) into a Postgres `artifacts`
+  table. `portal-v2` reads DIRECTLY via `supabase-js` with Row-Level Security;
+  downloads use signed Storage URLs; Supabase Realtime replaces the SSE poller.
+  The Express backend (`portal/`) is removed.
+- Fix the empty-table bug (eliminate the silent mock-data fallback) and rebuild
+  the artifact table for fast, low-memory rendering (indexed Postgres queries +
+  row virtualization).
+- Dynamic search bar (by Work Request # or week-ending date) + dynamic
+  filterable / sortable columns.
+- Modern, responsive, beautiful UI/UX with tasteful Framer Motion animations.
+- Supabase Auth login gate, reached via **link-out** (new tab) from another
+  site's nav; `frame-ancestors` locked to `'none'` (no iframe embedding).
+- Login hardening with **hCaptcha** (native Supabase Auth support).
+- Security hardening + a `/security-review` pass (RLS, signed-URL scoping,
+  CSP/headers, secret handling, auth flows).
+
+**Supersedes:** the prior v1.1 Railway → Render Express migration (MIG-01 and
+the migration/decommission requirements) — there is no Express server to
+migrate; it is removed. See Out of Scope.
+
 ## Current State
 
 **Shipped: v1.0 Subcontractor Rate Logic (2026-05-20).** 2 phases (01 +
@@ -39,13 +106,40 @@ claim-history attribution, all behind default-ON kill switches and additive to
 the existing primary/helper/VAC-crew/ORIG-folder outputs. Milestone audit:
 `tech_debt` (`milestones/v1.0-MILESTONE-AUDIT.md`).
 
+**Shipped: v1.0 hotfix — Phase 2 Attribution Bulk-Prefetch + Historical
+Claimer Remediation (2026-05-26).** 6 plans (4 + 2 gap-closure), `pytest
+tests/` → 986 passed / 29 skipped / 69 subtests. Replaces the per-row
+`lookup_attribution` pre-passes (the ~137k-call time-budget incident) with a
+single bulk `lookup_attribution_bulk` RPC + fail-safe `prefetch_attribution`
+reader, drops the `ATTRIBUTION_RESOLUTION_WEEKS` key-formation footgun, adds a
+default-OFF dry-run-first `run_claimer_remediation` garbage sweep, and makes the
+reader deploy-order-tolerant (`rpc_missing` → `ATTRIBUTION_BULK_PREFETCH_FALLBACK`
+degrades to per-row). Verified 6/6 must-haves; 3 operator validations pending
+(`02-HUMAN-UAT.md`): RPC deploy + production run, remediation dry-run, and the
+human-gated Sub-project E re-activation (`SUPABASE_HASH_STORE_AUTHORITATIVE=1`).
+
 **Pending live verification (carried into v1.1):** production-observable
 acceptance of the v1.0 variants is confirmed on the next scheduled cron run
 (4 HUMAN-UAT items), plus operator actions — apply `billing_audit/schema.sql`,
 data-team `lookup_attribution` RPC deploy, and the Step B price-write check.
 
-**Next milestone (v1.1):** Backend Migration + Artifact Explorer, led by the
-MIG-01 pre-migration ADR. Start with `/gsd-new-milestone`.
+**In progress: v1.1 — Portal (Supabase-native Artifact Portal).** Phases 03–06
+complete (2026-06-02). The portal now reads real Supabase data directly
+(`poeyztlmsawfoqlanucc`, ~2,383 artifacts): Phase 03 provisioned the
+`public.artifacts` / `public.profiles` schema + additive CI publish step; Phase 04
+shipped the auth gate, RBAC, admin surface, and Vercel deploy; Phase 05 wired a
+virtualized, searchable, filterable, sortable artifact table onto that real data
+and removed the silent Express mock fallback (TABLE-01..05, SEARCH-01..04; build
+clean, 85 vitest tests; 5 live-session UAT items tracked in `05-HUMAN-UAT.md`).
+Phase 06 made it feel alive and polished (DATA-06, UI-01..03): Supabase Realtime
+count-only toast + "Load new" pill (role-gated, RLS-per-subscriber; `artifacts`
+added to the `supabase_realtime` publication), responsive table↔card swap,
+opacity-only row-entrance stagger, single global `ToastContext` (C-01), variant
+query cap (C-02), jest-axe a11y net + the operator-approved `/frontend-design`
+polish pass (build clean, 107 vitest tests; 10/10 automated must-haves verified;
+6 live-browser UAT items tracked in `06-HUMAN-UAT.md`). Remaining: Phase 07
+(security hardening + `portal/` Express removal). The earlier Railway→Render
+migration scope (MIG-01) is superseded — Express is removed, not migrated.
 
 ## Requirements
 
@@ -76,27 +170,25 @@ are pending the first post-merge GitHub Actions cron run (see
 
 <!-- Next milestone (v1.1) scope. Building toward these. -->
 
-v1.1 is the **Backend Migration + Artifact Explorer** milestone, led by the
-pre-migration ADR. Promote via `/gsd-new-milestone`. Full source detail in
-`milestones/v1.0-REQUIREMENTS.md` (v1.1-deferred section).
+v1.1 is the **Portal — Supabase-native Artifact Portal** milestone (see
+"Current Milestone" above). It removes the Express backend and rebuilds
+`portal-v2/` to read artifacts directly from Supabase. Detailed,
+testable REQ-IDs are scoped in `.planning/REQUIREMENTS.md` (generated this
+milestone) and mapped to phases in `.planning/ROADMAP.md`. High-level
+requirement categories:
 
-- [ ] **MIG-01**: File the pre-migration ADR for Railway → Render under
-  `memory-bank/adr/` (Render Starter plan, in-memory LRU search, v1
-  download = original `.xlsx`) before the migration phases execute
-- [ ] **REQ-railway-render-migration**: Execute the Railway → Render
-  backend migration with zero user-visible downtime
-- [ ] **REQ-migration-staging-verification**: Stand up Render in parallel
-  to Railway, pass the staging-verification checklist
-- [ ] **REQ-migration-decommission**: Decommission Railway 48 h after a
-  clean cutover
-- [ ] **REQ-artifact-explorer-v1**: Ship the three-pane Artifact Explorer
-  redesign in `portal-v2/`
-- [ ] **REQ-excel-styled-renderer**: Hybrid Excel renderer (server-side
-  exceljs styled HTML + `@tanstack/react-virtual` table)
-- [ ] **REQ-cross-artifact-search**: Two-tier filter + `Cmd+K` palette
-  backed by in-memory LRU search index on Render
-- [ ] **REQ-backend-routes-for-explorer**: Five new Express routes on
-  `portal/` powering the explorer
+- [x] **DATA-\***: Supabase-native artifact data layer — `artifacts` Postgres
+  table + Storage bucket, additive GitHub Actions publish step, RLS policies,
+  signed-URL downloads (DATA-01..05 Phase 03; DATA-06 Realtime Phase 06).
+- [x] **TABLE-\***: Fast, low-memory, virtualized artifact table that fixes the
+  empty-table bug and renders real Supabase data (Phase 05).
+- [x] **SEARCH-\***: Dynamic search (WR # / week-ending) + dynamic
+  filterable/sortable columns (Phase 05).
+- [x] **UI-\***: Modern, responsive, animated, accessible UI/UX (UI-01..03 Phase 06).
+- [ ] **AUTH-\***: Supabase Auth login gate, link-out access model, hCaptcha
+  on login.
+- [ ] **SEC-\***: Security hardening + `/security-review` (RLS, signed-URL
+  scoping, CSP/headers, secrets).
 
 ### Carrying over to v1.1 (live verification of v1.0)
 
@@ -112,6 +204,28 @@ acceptance is confirmed on the first post-merge cron run:
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
+- **Railway → Render Express migration (MIG-01, REQ-railway-render-migration,
+  REQ-migration-staging-verification, REQ-migration-decommission)** —
+  SUPERSEDED 2026-05-29. v1.1 removes the Express backend entirely and serves
+  artifacts from Supabase (Storage + Postgres `artifacts` table) read directly
+  by `portal-v2`. There is no Node server to migrate, stage, or decommission,
+  so the Render Starter plan, the parallel-staging checklist, and the 48 h
+  Railway warm-down no longer apply. The locked Render/Express `(SPEC)`
+  decisions in Key Decisions (Render Web Service, in-memory LRU search index,
+  five Express explorer routes, `VITE_API_BASE_URL` rollback flip) are retired
+  with this supersession.
+- **Express-backend Artifact Explorer internals (server-side `exceljs` styled
+  HTML, in-memory LRU search `max:200`, five Express routes)** — the Artifact
+  Explorer redesign survives but is re-based onto Supabase: filtering/search is
+  Postgres-backed (indexed columns), not an in-memory LRU index on a Node
+  server. Any Excel content-preview rendering, if scoped, runs client-side or
+  via a Supabase Edge Function — never a removed Express server.
+- **iframe embedding of the portal** — access is link-out (new tab) only;
+  `frame-ancestors 'none'` stays locked. Revisit only with an explicit
+  embedding requirement and a named parent domain.
+- **reCAPTCHA on the login page** — hCaptcha is used because Supabase Auth
+  supports it natively; reCAPTCHA would require a custom token-verification
+  Edge Function (extra code + attack surface) for no added benefit here.
 - **Re-enabling CSV-side rate recalc on ORIG-folder sheets** — Smartsheet
   now emits authoritative post-cutoff prices for folders
   `7644752003786628` / `8815193070299012`; running both pricing systems on
@@ -321,8 +435,47 @@ extracted from `CLAUDE.md` Living Ledger (see
 
 </decisions>
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-20 after **v1.0 Subcontractor Rate Logic** milestone
+*Last updated: 2026-06-08 — Milestone **v1.2 smartsheet-python-sdk 4.0.0
+Compatibility Migration** started (Phase 08). Compat-only migration to SDK
+4.0.0 so the temporary `<4.0.0` pin (hotfix 260608-gwm / PR #273) can be
+lifted, with zero behavior change to the billing pipeline. v1.1 Portal shipped
+(Phases 03–07); its artifacts are preserved (not archived — pending Phase 06
+manual UAT). Requirements `SDK-01..06` in REQUIREMENTS.md; roadmap Phase 08.*
+
+*Previously updated: 2026-06-02 — Phase 06 (Realtime and UI Polish) complete;
+v1.1 Phases 03–06 shipped (only Phase 07 — security hardening + Express
+removal — remains). Phase 06 added Supabase Realtime (count-only, role-gated
+toast + pill; `artifacts` in the `supabase_realtime` publication), responsive
+mobile cards, tasteful animations, a single global ToastContext, jest-axe a11y
+coverage, and the operator-approved `/frontend-design` polish pass; 10/10
+automated must-haves verified, 6 live-browser UAT items pending. Milestone
+**v1.1 Portal — Supabase-native Artifact Portal**. Supersedes the prior v1.1 Railway → Render Express migration
+(moved to Out of Scope). Express backend to be removed; `portal-v2` reads
+artifacts directly from Supabase (Storage + Postgres `artifacts` table) with
+RLS + signed URLs; hCaptcha-hardened Supabase Auth login; link-out access
+model. Production Python pipeline untouched (additive workflow publish step only).*
+
+*Previously updated: 2026-05-26 after **Phase 2** (v1.0 hotfix: Attribution Bulk-Prefetch + Historical Claimer Remediation) completed*
+
+*Previously updated: 2026-05-20 after **v1.0 Subcontractor Rate Logic** milestone
 completion (Phases 01 + 01.1, 19 plans, 682 tests passing). All 12 v1
 requirements (SUB-01..12) shipped code-complete and moved to Validated;
 production-observable acceptance is carried into v1.1 as live-cron UAT.

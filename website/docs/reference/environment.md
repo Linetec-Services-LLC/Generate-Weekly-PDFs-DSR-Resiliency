@@ -517,6 +517,188 @@ manually). The resolved value is printed at startup as
 `weekly-excel-generation.yml` `env:` block alongside
 `PRIMARY_CLAIM_ATTRIBUTION_ENABLED`.
 
+## Sub-project E — Supabase durable hash store
+
+*(Added 2026-05-25, Sub-project E — durable change-detection hash store +
+filename token stripping.)*
+
+Sub-project E moves the **durable** change-detection hash off the
+attachment filename and into Supabase
+(`billing_audit.group_content_hash`, keyed on the same 4-tuple as the
+engine's `history_key`: `wr | week_ending | variant | identifier`). Once
+authoritative, generated filenames drop the `_<timestamp>` and
+`_<hash>` tokens, so the canonical name becomes
+`WR_{wr}_WeekEnding_{MMDDYY}{variant_suffix}.xlsx` (identity only).
+`hash_history.json` is retained as a local fast cache + offline fallback;
+a Supabase outage degrades to **regenerate**, never a silent skip.
+
+The two flags ship **dormant**: shadow-write is on from day one so the
+durable store fills up under real traffic, while the authoritative read +
+filename stripping stay off until the store is validated (mirrors
+Foundation A's dormant-ship pattern).
+
+### `SUPABASE_HASH_STORE_WRITE_ENABLED`
+
+**Default:** `1` (enabled). Truthy values: `1`, `true`, `yes`, `on`.
+
+When enabled, every generated group shadow-writes its content hash to
+`billing_audit.group_content_hash` via `upsert_group_hash` — alongside
+the existing `hash_history.json` write. This is **harmless while the
+store is not yet authoritative**: it only populates the durable store so
+the eventual authoritative flip has data to read. The writer is
+fail-safe (a no-op when Supabase is unavailable / `TEST_MODE`, and never
+raises). The resolved value is printed at startup as
+`📋 SUPABASE_HASH_STORE_WRITE_ENABLED=<bool>`. Pinned to `1` in the
+`weekly-excel-generation.yml` `env:` block. Set to `0` to stop shadow
+writes (e.g. to reduce Supabase write volume) — change detection is
+unaffected because `hash_history.json` + the filename hash remain the
+active signals while not authoritative.
+
+### `SUPABASE_HASH_STORE_AUTHORITATIVE`
+
+**Default:** `0` (disabled — dormant). Truthy values: `1`, `true`, `yes`,
+`on`.
+
+When enabled, three behaviors flip together:
+
+1. **Skip gate reads Supabase.** The unchanged-vs-stored decision
+   (`_resolve_unchanged_for_skip`) calls `lookup_group_hash` first. On a
+   `success` it compares hashes; on `no_row` (never durably stored) it
+   regenerates; on an outage (`fetch_failure` / `unavailable`) it falls
+   back to the `hash_history.json` cache. A cache miss regenerates.
+2. **Clean filenames.** `generate_excel` emits
+   `WR_{wr}_WeekEnding_{MMDDYY}{variant_suffix}.xlsx` (no
+   `_<timestamp>`/`_<hash>` tokens). `build_group_identity` parses both
+   the new clean shape and the legacy token-bearing shape, so old and new
+   attachments coexist during migration.
+3. **Cleanup stops trusting the filename hash.**
+   `delete_old_excel_attachments` no longer short-circuits on the
+   filename-embedded hash (clean names carry none); identity-based
+   replacement of the prior attachment still runs.
+
+**OPERATOR PREREQUISITE (blocks activation — not code):** before flipping
+this to `1`, and for shadow writes to land at all, the operator MUST
+apply `billing_audit/schema.sql` (the new `group_content_hash` table) to
+the live Supabase project AND reload the PostgREST schema cache:
+
+```sql
+NOTIFY pgrst, 'reload schema';
+```
+
+Until then the pipeline behaves exactly as today (fail-safe to
+regenerate). Note the precise log signature: because `billing_audit`
+credentials are already configured (the attribution writers use them),
+a missing `group_content_hash` table/schema-cache surfaces as
+`fetch_failure` (a PostgREST/SQLSTATE error classified by
+`with_retry`), **not** `unavailable` (which is reserved for missing
+credentials / `TEST_MODE`). Either way the skip gate falls back to the
+`hash_history.json` cache and regenerates on a miss — and a schema-not-
+exposed error (`PGRST106`) trips the run-global kill switch so the rest
+of the run skips Supabase at zero network cost.
+
+**Rollout:** ship dormant (`0`), confirm the store is filling correctly
+under real traffic, then flip to `1`. **Revert** is a one-line workflow
+change back to `SUPABASE_HASH_STORE_AUTHORITATIVE: '0'` — no code change.
+The resolved value is printed at startup as
+`📋 SUPABASE_HASH_STORE_AUTHORITATIVE=<bool>`. Pinned to `0` in the
+`weekly-excel-generation.yml` `env:` block.
+
+---
+
+### `REMEDIATE_CLAIMERS`
+
+**Default:** `0` (OFF — never fires on scheduled cron)
+**Purpose:** Activates the isolated garbage-attachment remediation sweep
+(Phase 2 Plan 03, D-06/D-07/D-08). When `1`, `main()` sweeps
+`TARGET_SHEET_ID` and `SUBCONTRACTOR_PPP_SHEET_ID` for attachments
+matching `*_NO_MATCH*` or `*_Unknown_Foreman*` patterns (the tokens
+`resolve_claimer` emits for unresolved historical rows), then **returns
+immediately** — no Excel generation occurs in the same session (isolation
+contract per D-06).
+
+**Operator workflow:**
+
+1. Set via the `advanced_options` workflow_dispatch field as
+   `remediate_claimers:1` (the advanced_options parser exports it to
+   `$GITHUB_ENV`). Review the `🔍 [DRY-RUN] would delete...` log lines.
+2. If the scope is correct, re-run with `remediation_dry_run:0` in
+   `advanced_options`.
+3. Normal cron runs are unaffected — the Python default is `'0'` so the
+   sweep never fires when `advanced_options` does not set it.
+
+The Python default (`'0'`) applies when unset, so a normal cron run never
+sweeps. The resolved state is printed at startup alongside
+`REMEDIATION_DRY_RUN` and `REMEDIATION_WINDOW_WEEKS`.
+
+### `REMEDIATION_DRY_RUN`
+
+**Default:** `1` (dry-run ON — report counts, no deletions)
+**Purpose:** Controls whether the garbage-attachment sweep (D-08)
+actually deletes. When `1`, `run_claimer_remediation()` logs every
+matching attachment it *would* delete but calls `delete_attachment` zero
+times. Set to `0` only after reviewing a dry-run log and confirming the
+scope is correct. Has no effect when `REMEDIATE_CLAIMERS=0`.
+
+Set via `remediation_dry_run:0` in the `advanced_options` workflow_dispatch
+field. The Python default (`'1'`) applies when unset — dry-run is always
+the safe starting point.
+
+### `REMEDIATION_WINDOW_WEEKS`
+
+**Default:** `26` (roughly 6 months)
+**Format:** non-negative integer. Invalid values fall back to `26` with an
+`⚠️` warning log.
+**Purpose:** Limits the sweep to attachments whose parsed week-ending date
+is within the last N weeks of today (D-08 blast-radius guard). `0`
+disables the filter (unbounded — sweeps all history). Has no effect when
+`REMEDIATE_CLAIMERS=0`.
+
+Set via `remediation_window_weeks:N` in the `advanced_options`
+workflow_dispatch field. The Python default (`'26'`) applies when unset.
+
+---
+
+### `ATTRIBUTION_BULK_PREFETCH_FALLBACK`
+
+**Default:** `1` (ON — degrade to per-row on a missing bulk RPC)
+**Owns:** Python billing pipeline (`generate_weekly_pdfs.py`).
+**Purpose:** Controls how the claim-attribution consumers (Sub-projects
+B/C/D and the subcontractor helper-shadow path) react when the bulk
+`lookup_attribution_bulk` Supabase RPC is **not deployed**.
+
+`prefetch_attribution` now distinguishes two failure modes:
+
+- **`rpc_missing`** — the bulk RPC returns PostgREST `PGRST202` ("function
+  not found"). This is *permanent* and is **not** a transient outage. The
+  already-deployed per-row `lookup_attribution` RPC returns the SAME frozen
+  attribution data, just one round-trip per row instead of one bulk call.
+- **`fetch_failure`** — a genuine transient Supabase outage (network blip,
+  retries exhausted). Retrying might succeed.
+
+When `ATTRIBUTION_BULK_PREFETCH_FALLBACK=1` (default) **and** the status is
+`rpc_missing`, B/C/sub-helper degrade to the per-row path
+(`prefetched_map=None`) so they still **generate** their billing files with
+the real frozen claimer. This makes the merge tolerant of a code-before-RPC
+deploy order — operators do not have to deploy the RPC *before* the next
+production run to avoid suppressing billing. The per-row fallback is bounded
+to the rows actually processed this run, so it cannot reintroduce the ~137k
+per-row RPC storm that motivated the bulk path.
+
+A genuine **`fetch_failure`** still preserves the D-04 HOLD contract: B and C
+HOLD the affected rows (correctness over availability — a possibly
+mis-attributed billing file is worse than a late one); D uses-current (the
+core primary path prioritizes availability); the sub-helper path falls back
+to the current `Foreman Helping?` value and emits its per-WR WARNING.
+
+Set to `'0'` to force strict bulk-only behavior — a missing RPC will then
+HOLD B/C just like a transient outage (operator opt-out).
+
+The resolved value is printed at startup as
+`📋 ATTRIBUTION_BULK_PREFETCH_FALLBACK=<bool>`. Pinned to `'1'` in the
+`weekly-excel-generation.yml` `env:` block.
+
+---
+
 ### `AEP_BILLABLE_CUTOFF`
 
 **Default:** `2026-04-12` (AEP rate-increase contract awarded to Linetec)
@@ -569,7 +751,7 @@ Phase 1 successor with explicit subcontractor-variant scope.
 | `DISCOVERY_CACHE_TTL_MIN` | `10080` | Cache age ceiling, minutes. |
 | `PARALLEL_WORKERS` | `8` | Threads for data fetch + attachment pre-fetch. |
 | `PARALLEL_WORKERS_DISCOVERY` | `8` | Threads for sheet discovery. |
-| `TIME_BUDGET_MINUTES` | `0` (code) / `95` (workflow) | Graceful stop budget in minutes. `0` disables the early-exit. The weekly workflow sets `95` (1h35m) with a matching runner `timeout-minutes: 110` (15min cushion for cache/artifact save steps); local runs default to disabled. |
+| `TIME_BUDGET_MINUTES` | `0` (code) / `165` (workflow) | Graceful stop budget in minutes. `0` disables the early-exit. The weekly workflow sets `165` (2h45m) with a matching runner `timeout-minutes: 180` (15min cushion for cache/artifact save steps); local runs default to disabled. Raised 2026-05-26 from `95`/`110`; Phase 2 bulk attribution prefetch (one `lookup_attribution_bulk` call instead of ~137k per-row RPCs) keeps normal runtime well under the cron interval. |
 | `ATTACHMENT_PREFETCH_MAX_MINUTES` | `10` | Phase sub-budget for the target-row attachment pre-fetch (introduced 2026-04-22). Passed as `timeout=` to `as_completed(...)` so the iterator itself raises `FuturesTimeoutError` if stuck HTTP calls prevent progress. When it fires, the consumer loop exits, in-flight threads are abandoned via `executor.shutdown(wait=False, cancel_futures=True)`, and the remaining rows fall back to per-row on-demand lookups. Also used by the pre-flight guard: if less than this many minutes remain in the session budget, pre-fetch is skipped entirely. |
 | `ATTACHMENT_PREFETCH_FUTURE_TIMEOUT_SEC` | `45` | Defensive per-future timeout passed to `future.result(timeout=...)` inside the pre-fetch consumer loop. In the current code path this is belt-and-suspenders — `as_completed` only yields already-done futures, so `.result()` returns immediately — but a future refactor that yielded not-yet-done futures would still degrade gracefully instead of raising. |
 

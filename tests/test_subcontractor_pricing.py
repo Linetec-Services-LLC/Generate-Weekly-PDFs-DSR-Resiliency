@@ -45,6 +45,12 @@ class TestLoadContractRates(unittest.TestCase):
         rates = generate_weekly_pdfs.load_contract_rates('/nonexistent/path.csv')
         self.assertEqual(rates, {})
 
+    def test_missing_file_is_benign_not_error(self):
+        """Missing rate CSV must NOT emit ERROR-level log (benign INFO skip, not a Sentry event)."""
+        with self.assertNoLogs(level="ERROR"):
+            rates = generate_weekly_pdfs.load_contract_rates("/nonexistent/path.csv")
+        self.assertEqual(rates, {})
+
     def test_empty_csv_returns_empty(self):
         """Test that a CSV with only headers returns an empty dict."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, newline='') as f:
@@ -759,6 +765,12 @@ class TestBuildCuToGroupMapping(unittest.TestCase):
     def test_missing_file_returns_empty(self):
         """Test that missing file returns empty mapping."""
         mapping = generate_weekly_pdfs.build_cu_to_group_mapping('/nonexistent/old.csv')
+        self.assertEqual(mapping, {})
+
+    def test_missing_file_is_benign_not_error(self):
+        """Missing old-rates CSV must NOT emit ERROR-level log (benign INFO skip, not a Sentry event)."""
+        with self.assertNoLogs(level="ERROR"):
+            mapping = generate_weekly_pdfs.build_cu_to_group_mapping("/nonexistent/old.csv")
         self.assertEqual(mapping, {})
 
     def test_cu_codes_uppercased(self):
@@ -2465,7 +2477,9 @@ class TestSubcontractorMissingCUWarning(unittest.TestCase):
     def test_warning_text_marker_present_in_module(self):
         """The WARNING template uses the stable marker the sanitizer recognises."""
         import inspect
-        src = inspect.getsource(generate_weekly_pdfs)
+        import pipeline.orchestrate  # W6: end-of-sheet WARNING lives in main()
+        src = (inspect.getsource(generate_weekly_pdfs)
+               + "\n" + inspect.getsource(pipeline.orchestrate))
         self.assertIn(
             'Subcontractor rates CSV missing', src,
             "Missing-CU WARNING template must include the marker "
@@ -2939,9 +2953,16 @@ class TestSubcontractorB1PartitioningGate(unittest.TestCase):
         """
         import inspect
         import pathlib
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        import pipeline.grouping  # W4: group_source_rows relocated here
+        src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.grouping)
+            ).read_text(encoding='utf-8')
+        )
         self.assertIn(
             'if not is_subcontractor_row and not valid_helper_row:',
             src,
@@ -3261,9 +3282,24 @@ class TestHelperShadowSuffixDefensiveRaise(unittest.TestCase):
         # suspenders complement to the behavioral tests above.
         import inspect
         import pathlib
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        # W4: variant-suffix / generate_excel logic relocated to
+        # pipeline/excel.py; group_source_rows to pipeline/grouping.py —
+        # grep facade + both relocated modules so the guard follows the code.
+        import pipeline.grouping
+        import pipeline.excel
+        src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.grouping)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.excel)
+            ).read_text(encoding='utf-8')
+        )
         # The raise text should be unique enough to grep for.
         self.assertIn(
             'aep_billable_helper requires __helper_foreman', src,
@@ -3758,9 +3794,16 @@ class TestHelperShadowVariantFileIdentifier(unittest.TestCase):
         # "test mirror passes but production reverted" failure mode.
         import inspect
         import pathlib
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        import pipeline.orchestrate  # W6: main-loop Site 1 gate lives in main()
+        src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
         # Either single- or double-quote tuple syntax acceptable.
         gate_present = (
             "variant in ('helper', 'aep_billable_helper', 'reduced_sub_helper')"
@@ -3784,9 +3827,16 @@ class TestHelperShadowVariantFileIdentifier(unittest.TestCase):
         # slightly different -- count BOTH forms.
         import inspect
         import pathlib
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        import pipeline.orchestrate  # W6: Sites 1/2/3 gates live in main()
+        src = (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
         count_v1 = (
             src.count("variant in ('helper', 'aep_billable_helper', 'reduced_sub_helper')")
             + src.count('variant in ("helper", "aep_billable_helper", "reduced_sub_helper")')
@@ -4027,11 +4077,12 @@ class TestResolveRowPriceQuantityCoercion(unittest.TestCase):
 
     def test_production_source_does_not_carry_or_zero_pattern(self):
         # Source-level guard: the ``or 0`` short-circuit is removed.
+        # Phase 09 W2: ``_resolve_row_price`` was relocated to
+        # ``pipeline/pricing.py``; inspect the function object's source
+        # (which follows the facade re-export to the new module) instead
+        # of the facade file so the guard tracks the code's real home.
         import inspect
-        import pathlib
-        src = pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        src = inspect.getsource(generate_weekly_pdfs._resolve_row_price)
         self.assertNotIn(
             "row.get('Quantity') or 0",
             src,
@@ -4145,7 +4196,7 @@ class TestPhase1FilenameRoundTripCoverage(unittest.TestCase):
 
 class TestPhase1GapClosureLedgerEntryPresent(unittest.TestCase):
     """Phase 01 gap closure (Living Ledger / autonomous-cloud-memory):
-    a CLAUDE.md Living Ledger entry timestamped 2026-05-15 MUST
+    a memory-bank/living-ledger.md Living Ledger entry timestamped 2026-05-15 MUST
     document the 13-finding gap-closure round and the 7 new rules
     encoded therein. Per CLAUDE.md's "AUTONOMOUS CLOUD MEMORY
     INJECTION (CRITICAL)" rule, any architectural standard /
@@ -4158,13 +4209,13 @@ class TestPhase1GapClosureLedgerEntryPresent(unittest.TestCase):
 
     @staticmethod
     def _read_ledger() -> str:
-        # CLAUDE.md is at the repo root, sibling to
-        # generate_weekly_pdfs.py.
+        # Living Ledger was relocated from CLAUDE.md to
+        # memory-bank/living-ledger.md on 2026-05-28.
         import pathlib
         repo_root = pathlib.Path(
             generate_weekly_pdfs.__file__,
         ).parent
-        return (repo_root / 'CLAUDE.md').read_text(encoding='utf-8')
+        return (repo_root / 'memory-bank' / 'living-ledger.md').read_text(encoding='utf-8')
 
     def test_timestamp_present(self):
         ledger = self._read_ledger()
@@ -4649,8 +4700,11 @@ class TestCleanupVariantWhitelist(unittest.TestCase):
         the production function. Mirrors the WR-01 source-level
         pattern in TestPppCleanupUntrackedAttachments."""
         import inspect, pathlib
+        import pipeline.cleanup  # W5: cleanup_untracked_sheet_attachments relocated here
         src = pathlib.Path(
             inspect.getsourcefile(generate_weekly_pdfs)
+        ).read_text(encoding='utf-8') + "\n" + pathlib.Path(
+            inspect.getsourcefile(pipeline.cleanup)
         ).read_text(encoding='utf-8')
         self.assertIn(
             'removed_off_contract = 0', src,
@@ -4685,8 +4739,11 @@ class TestCleanupVariantWhitelist(unittest.TestCase):
 
     def test_source_off_contract_delete_log_body_present(self):
         import inspect, pathlib
+        import pipeline.cleanup  # W5: cleanup_untracked_sheet_attachments relocated here
         src = pathlib.Path(
             inspect.getsourcefile(generate_weekly_pdfs)
+        ).read_text(encoding='utf-8') + "\n" + pathlib.Path(
+            inspect.getsourcefile(pipeline.cleanup)
         ).read_text(encoding='utf-8')
         self.assertIn(
             'Removed off-contract variant on sheet', src,
@@ -4704,10 +4761,19 @@ class TestPppCleanupInvocationCarriesWhitelist(unittest.TestCase):
 
     @staticmethod
     def _read_source() -> str:
+        # Phase 09 W6: the PPP cleanup invocation lives in main() (relocated
+        # to pipeline/orchestrate.py) — concatenate it (follow-the-code).
         import inspect, pathlib
-        return pathlib.Path(
-            inspect.getsourcefile(generate_weekly_pdfs)
-        ).read_text(encoding='utf-8')
+        import pipeline.orchestrate
+        return (
+            pathlib.Path(
+                inspect.getsourcefile(generate_weekly_pdfs)
+            ).read_text(encoding='utf-8')
+            + "\n"
+            + pathlib.Path(
+                inspect.getsourcefile(pipeline.orchestrate)
+            ).read_text(encoding='utf-8')
+        )
 
     def test_ppp_invocation_passes_literal_whitelist(self):
         src = self._read_source()
@@ -4782,6 +4848,239 @@ class TestPppCleanupInvocationCarriesWhitelist(unittest.TestCase):
             'op="smartsheet.cleanup_ppp" Sentry span (within '
             '~1500 chars after the op marker).'
         )
+
+
+class TestSentryTelemetryHelpers(unittest.TestCase):
+    """Unit tests for the three pure Sentry telemetry helpers.
+
+    These helpers are intentionally pure (A/B) or side-effect-guarded (C)
+    so that PII-safety is test-enforced rather than relying on review alone.
+    Both add_attachment and sentry_sdk.logger bypass before_send_log, making
+    these assertions the primary defence against PII leakage into Sentry.
+    """
+
+    # ------------------------------------------------------------------ #
+    # Helper A: _build_run_kpis                                           #
+    # ------------------------------------------------------------------ #
+
+    def _kpi_defaults(self, **overrides):
+        """Return a valid kwargs dict for _build_run_kpis."""
+        base = dict(
+            files_generated=10,
+            groups_total=15,
+            groups_skipped=2,
+            groups_generated=10,
+            groups_uploaded=9,
+            groups_errored=1,
+            duration_seconds=120.0,
+            sheets_discovered=5,
+            rows_fetched=550,
+            api_calls=42,
+        )
+        base.update(overrides)
+        return base
+
+    def test_kpi_returns_expected_keys(self):
+        """_build_run_kpis returns all required KPI keys."""
+        result = generate_weekly_pdfs._build_run_kpis(**self._kpi_defaults())
+        expected_keys = {
+            "files_generated",
+            "groups_total",
+            "groups_skipped",
+            "groups_generated",
+            "groups_uploaded",
+            "groups_errored",
+            "duration_seconds",
+            "sheets_discovered",
+            "rows_fetched",
+            "api_calls",
+            "groups_per_minute",
+        }
+        self.assertEqual(set(result.keys()), expected_keys)
+
+    def test_kpi_throughput_computed_correctly(self):
+        """groups_per_minute is derived: groups_generated / (duration_seconds/60)."""
+        result = generate_weekly_pdfs._build_run_kpis(**self._kpi_defaults(
+            groups_generated=10,
+            duration_seconds=120.0,
+        ))
+        self.assertAlmostEqual(result["groups_per_minute"], 5.0, places=2)
+
+    def test_kpi_zero_duration_gives_zero_throughput(self):
+        """Zero duration_seconds must not raise ZeroDivisionError; throughput is 0.0."""
+        result = generate_weekly_pdfs._build_run_kpis(**self._kpi_defaults(
+            duration_seconds=0.0,
+        ))
+        self.assertEqual(result["groups_per_minute"], 0.0)
+
+    def test_kpi_all_values_are_numeric(self):
+        """Every value in the KPI dict is int or float — guarantees no PII string leakage."""
+        result = generate_weekly_pdfs._build_run_kpis(**self._kpi_defaults())
+        for key, value in result.items():
+            self.assertIsInstance(
+                value, (int, float),
+                msg=f"KPI key '{key}' has non-numeric value {value!r} — potential PII leakage",
+            )
+
+    def test_kpi_no_string_values(self):
+        """No string values allowed in KPI dict (strings could carry PII)."""
+        result = generate_weekly_pdfs._build_run_kpis(**self._kpi_defaults())
+        string_values = {k: v for k, v in result.items() if isinstance(v, str)}
+        self.assertEqual(string_values, {}, msg=f"Unexpected string values: {string_values}")
+
+    # ------------------------------------------------------------------ #
+    # Helper B: _build_run_context_snapshot                               #
+    # ------------------------------------------------------------------ #
+
+    def _snap_success_kwargs(self):
+        return dict(
+            success=True,
+            duration_seconds=90.0,
+            groups_attempted=12,
+            groups_generated=10,
+            groups_uploaded=9,
+            groups_errored=1,
+            error_type=None,
+        )
+
+    def _snap_failure_kwargs(self):
+        return dict(
+            success=False,
+            duration_seconds=45.0,
+            groups_attempted=5,
+            groups_generated=2,
+            groups_uploaded=1,
+            groups_errored=3,
+            error_type="RuntimeError",
+        )
+
+    def test_snapshot_success_shape(self):
+        """Success snapshot contains expected keys and success=True."""
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_success_kwargs())
+        self.assertIn("success", result)
+        self.assertTrue(result["success"])
+        self.assertIn("duration_seconds", result)
+        self.assertIn("groups_attempted", result)
+        self.assertIn("groups_generated", result)
+        self.assertIn("groups_uploaded", result)
+        self.assertIn("groups_errored", result)
+
+    def test_snapshot_failure_shape(self):
+        """Failure snapshot contains error_type; success=False."""
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_failure_kwargs())
+        self.assertFalse(result["success"])
+        self.assertEqual(result.get("error_type"), "RuntimeError")
+
+    def test_snapshot_success_no_error_type(self):
+        """Success snapshot has no error_type key or it is None."""
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_success_kwargs())
+        # error_type may be absent or None on success path
+        error_type_val = result.get("error_type")
+        self.assertIsNone(error_type_val)
+
+    def test_snapshot_values_are_safe_types(self):
+        """All values are int, float, bool, None, or error_type string only."""
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_failure_kwargs())
+        for key, value in result.items():
+            self.assertIsInstance(
+                value, (int, float, bool, str, type(None)),
+                msg=f"Snapshot key '{key}' has unexpected type {type(value).__name__}",
+            )
+
+    def test_snapshot_no_wr_token(self):
+        """Serialized snapshot JSON must not contain WR-like tokens."""
+        import json
+        import re
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_failure_kwargs())
+        serialized = json.dumps(result)
+        # Must not contain WR followed by digits (WR12345 style)
+        wr_pattern = re.compile(r'(?i)\bWR\d+\b')
+        self.assertIsNone(
+            wr_pattern.search(serialized),
+            msg=f"Snapshot JSON contains WR token: {serialized}",
+        )
+
+    def test_snapshot_no_dollar_sign(self):
+        """Serialized snapshot must not contain dollar amounts."""
+        import json
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_failure_kwargs())
+        serialized = json.dumps(result)
+        self.assertNotIn("$", serialized, msg="Snapshot JSON contains dollar sign — potential price PII")
+
+    def test_snapshot_no_foreman_name(self):
+        """Snapshot built from safe inputs must not carry any PII name strings."""
+        import json
+        result = generate_weekly_pdfs._build_run_context_snapshot(**self._snap_failure_kwargs())
+        serialized = json.dumps(result)
+        # The only string value allowed is error_type (the exception class name)
+        # Ensure a sample PII name is not present
+        self.assertNotIn("John Smith", serialized)
+        self.assertNotIn("foreman", serialized.lower().replace("groups", ""))
+
+    # ------------------------------------------------------------------ #
+    # Helper C: _sentry_log_event                                         #
+    # ------------------------------------------------------------------ #
+
+    def test_log_event_noop_without_dsn(self):
+        """_sentry_log_event must return immediately (no-op) when SENTRY_DSN is falsy."""
+        original_dsn = generate_weekly_pdfs.SENTRY_DSN
+        try:
+            generate_weekly_pdfs.SENTRY_DSN = ""
+            # Must not raise even if sentry_sdk.logger is present
+            generate_weekly_pdfs._sentry_log_event("info", "test milestone", count=5)
+        finally:
+            generate_weekly_pdfs.SENTRY_DSN = original_dsn
+
+    def test_log_event_noop_without_logger_attr(self):
+        """_sentry_log_event must no-op when sentry_sdk has no 'logger' attribute."""
+        import sentry_sdk as _sdk
+        original_dsn = generate_weekly_pdfs.SENTRY_DSN
+        original_logger = getattr(_sdk, "logger", None)
+        try:
+            # Simulate SDK older than 2.54 — no logger attribute
+            generate_weekly_pdfs.SENTRY_DSN = "https://fake@sentry.io/123"
+            if hasattr(_sdk, "logger"):
+                delattr(_sdk, "logger")
+            # Must not raise
+            generate_weekly_pdfs._sentry_log_event("info", "test milestone", count=5)
+        finally:
+            generate_weekly_pdfs.SENTRY_DSN = original_dsn
+            if original_logger is not None:
+                _sdk.logger = original_logger
+            elif hasattr(_sdk, "logger"):
+                delattr(_sdk, "logger")
+
+    def test_log_event_does_not_raise_on_bad_level(self):
+        """_sentry_log_event must never raise even if level is invalid."""
+        original_dsn = generate_weekly_pdfs.SENTRY_DSN
+        try:
+            generate_weekly_pdfs.SENTRY_DSN = ""
+            # Should not raise regardless of level
+            generate_weekly_pdfs._sentry_log_event("nonexistent_level", "message", x=1)
+        finally:
+            generate_weekly_pdfs.SENTRY_DSN = original_dsn
+
+    def test_log_event_does_not_raise_when_logger_call_fails(self):
+        """_sentry_log_event swallows internal errors and never propagates them."""
+        import sentry_sdk as _sdk
+
+        class _BrokenLogger:
+            def info(self, *a, **kw):
+                raise RuntimeError("broken logger")
+
+        original_dsn = generate_weekly_pdfs.SENTRY_DSN
+        original_logger = getattr(_sdk, "logger", None)
+        try:
+            generate_weekly_pdfs.SENTRY_DSN = "https://fake@sentry.io/123"
+            _sdk.logger = _BrokenLogger()
+            # Must not propagate the RuntimeError
+            generate_weekly_pdfs._sentry_log_event("info", "milestone", count=1)
+        finally:
+            generate_weekly_pdfs.SENTRY_DSN = original_dsn
+            if original_logger is not None:
+                _sdk.logger = original_logger
+            elif hasattr(_sdk, "logger"):
+                delattr(_sdk, "logger")
 
 
 if __name__ == '__main__':

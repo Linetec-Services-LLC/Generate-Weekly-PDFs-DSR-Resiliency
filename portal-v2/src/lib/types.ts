@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'viewer' | 'biller';
+export type UserRole = 'admin' | 'billing' | 'pending';
 
 export interface WorkflowRun {
   id: number;
@@ -30,31 +30,25 @@ export interface Artifact {
 
 export interface Profile {
   id: string;
-  email: string;
-  display_name: string | null;
-  role: UserRole;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  email: string;       // populated by handle_new_user() trigger
+  role: UserRole;      // 'admin' | 'billing' | 'pending'
+  created_at: string;  // ISO timestamp
 }
 
-export interface ActivityLog {
-  id: string;
-  user_id: string;
-  action: string;
-  resource: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  profiles?: Pick<Profile, 'email' | 'display_name'>;
-}
-
-export interface ArtifactDownload {
-  id: string;
-  user_id: string;
-  artifact_name: string;
-  artifact_url: string;
-  file_size_bytes: number;
-  downloaded_at: string;
+/**
+ * Matches the public.artifacts row shape exactly (supabase-js returns DATE as ISO string).
+ * 9 required keys — any drift from the schema will be caught by the type-contract test.
+ */
+export interface BillingArtifact {
+  id: string;              // uuid
+  work_request: string;    // e.g. "90001"
+  week_ending: string;     // ISO date string "2026-05-17" (supabase-js returns DATE as ISO)
+  week_ending_fmt: string; // MMDDYY display "051726"
+  variant: string;         // '' | 'helper' | 'vac_crew' | '_AEPBillable' | ...
+  filename: string;        // "WR_90001_WeekEnding_051726.xlsx"
+  storage_path: string;    // "{week_ending_iso}/{filename}"
+  size_bytes: number;
+  created_at: string;      // ISO timestamp
 }
 
 export type ToastType = 'success' | 'error' | 'info';

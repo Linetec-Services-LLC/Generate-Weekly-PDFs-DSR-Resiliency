@@ -1,13 +1,15 @@
-# Enhanced Monitoring and Error Handling (2.35.0+ required for enable_logs)
-sentry-sdk>=2.35.0
+# Enhanced Monitoring and Error Handling (2.54.0+ required for sentry_sdk.logger structured logs)
+sentry-sdk>=2.54.0
 
 # Core Dependencies
 # 3.1.0+ required for Folders.get_folder_children (replacement for deprecated get_folder)
-smartsheet-python-sdk>=3.1.0
+# Upper bound excludes the breaking 4.0.0 (2026-06-08) major release, which removed
+# smartsheet.exceptions + Folders.get_folder/list_folders + Templates and changed pagination.
+smartsheet-python-sdk>=3.1.0,<4.0.0
 openpyxl==3.1.5
 Pillow==12.2.0
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Data Processing and Validation
 pandas==2.2.2

@@ -3,14 +3,14 @@ name: Weekly Excel Generation with Sentry Monitoring (Every 2 Hours + Weekly)
 permissions:
   contents: read
 
-# Serialize runs per-ref. With timeout-minutes: 110 and a cron every ~2h
-# (120min), a slow run would otherwise overlap with the next fire,
-# doubling Smartsheet API pressure and increasing the chance of
-# cascading RemoteDisconnected stalls. cancel-in-progress: false
-# (queue mode) is the safer choice for billing: a near-complete run
+# Serialize runs per-ref. With timeout-minutes: 180 and a cron every ~2h
+# (120min), a slow run could overlap with the next fire. cancel-in-progress:
+# false (queue mode) is the safer choice for billing: a near-complete run
 # must NEVER be cancelled right before hash_history.save / attachment
-# upload finishes. The 110min hard ceiling already bounds how long a
-# stuck run can hold the queue.
+# upload finishes — overlapping fires queue instead. The bulk attribution
+# prefetch (Phase 2 Plan 02) resolves all claimers in one RPC round-trip,
+# keeping runs well under the cron interval. The 180min hard ceiling bounds
+# how long a stuck run can hold the queue.
 concurrency:
   group: weekly-excel-${{ github.ref }}
   cancel-in-progress: false
@@ -98,7 +98,7 @@ on:
         default: ''
         type: string
       advanced_options:
-        description: 'Advanced: max_groups:X,regen_weeks:MMDDYY1;MMDDYY2,reset_wr_list:WR1;WR2'
+        description: 'Advanced: max_groups:X,regen_weeks:MMDDYY1;MMDDYY2,reset_wr_list:WR1;WR2,remediate_claimers:1,remediation_dry_run:1,remediation_window_weeks:26'
         required: false
         default: ''
         type: string
@@ -123,9 +123,11 @@ jobs:
     runs-on: ubuntu-latest
     # Hard ceiling for the Actions runner. Must exceed TIME_BUDGET_MINUTES
     # so the Python process exits gracefully before Actions kills it.
-    # User requirement (2026-04-25): keep total run time under 1h50m.
-    # Reserve ~15 minutes for post-job cache/artifact steps.
-    timeout-minutes: 110
+    # Raised to 3h (was 1h50m) 2026-05-26 for headroom; Phase 2 Plan 02
+    # bulk attribution prefetch keeps normal runs well under the cron
+    # interval. Reserve ~15 minutes for post-job cache/artifact steps
+    # (TIME_BUDGET_MINUTES is pinned to 165 below).
+    timeout-minutes: 180
     env:
       PYTHONUNBUFFERED: 1
       GITHUB_ACTIONS: 'true'
@@ -198,17 +200,26 @@ jobs:
           echo "should_run=true" >> $GITHUB_OUTPUT
       - name: Parse advanced options
         if: github.event.inputs.advanced_options != ''
+        # Bind the untrusted dispatch input to an env var so the ${{ }}
+        # expansion lands in the environment, NOT in the script text
+        # (prevents shell/command injection — the value feeds the
+        # destructive remediate_claimers path). All expansions quoted.
+        env:
+          ADVANCED_OPTIONS: ${{ github.event.inputs.advanced_options }}
         run: |
-          echo "Parsing advanced options: ${{ github.event.inputs.advanced_options }}"
+          echo "Parsing advanced options: ${ADVANCED_OPTIONS}"
           # Parse advanced_options format: max_groups:X,regen_weeks:MMDDYY1;MMDDYY2,reset_wr_list:WR1;WR2
-          OPTIONS="${{ github.event.inputs.advanced_options }}"
-          for option in $(echo $OPTIONS | tr ',' '\n'); do
-            key=$(echo $option | cut -d':' -f1)
-            value=$(echo $option | cut -d':' -f2-)
-            case $key in
-              max_groups) echo "MAX_GROUPS=$value" >> $GITHUB_ENV ;;
-              regen_weeks) echo "REGEN_WEEKS=$(echo $value | tr ';' ',')" >> $GITHUB_ENV ;;
-              reset_wr_list) echo "RESET_WR_LIST=$(echo $value | tr ';' ',')" >> $GITHUB_ENV ;;
+          IFS=',' read -ra _ADV_OPTS <<< "${ADVANCED_OPTIONS}"
+          for option in "${_ADV_OPTS[@]}"; do
+            key="${option%%:*}"
+            value="${option#*:}"
+            case "$key" in
+              max_groups) echo "MAX_GROUPS=${value}" >> "$GITHUB_ENV" ;;
+              regen_weeks) echo "REGEN_WEEKS=$(echo "${value}" | tr ';' ',')" >> "$GITHUB_ENV" ;;
+              reset_wr_list) echo "RESET_WR_LIST=$(echo "${value}" | tr ';' ',')" >> "$GITHUB_ENV" ;;
+              remediate_claimers) echo "REMEDIATE_CLAIMERS=${value}" >> "$GITHUB_ENV" ;;
+              remediation_dry_run) echo "REMEDIATION_DRY_RUN=${value}" >> "$GITHUB_ENV" ;;
+              remediation_window_weeks) echo "REMEDIATION_WINDOW_WEEKS=${value}" >> "$GITHUB_ENV" ;;
             esac
           done
       - name: Generate reports
@@ -409,6 +420,82 @@ jobs:
           # resolution, NOT this cleanup). Living Ledger [2026-05-25].
           LEGACY_PRIMARY_PARTITION_CLEANUP_ENABLED: '1'
 
+          # Sub-project E (2026-05-25, DORMANT SHIP): durable Supabase
+          # change-detection hash store + clean (token-less) filenames.
+          # WRITE on from day one — shadow-writes the per-group content
+          # hash to billing_audit.group_content_hash every run (harmless
+          # while not authoritative; just populates the durable store).
+          # AUTHORITATIVE off — keeps the skip gate reading Supabase, the
+          # _<timestamp>/_<hash> filename stripping, and the legacy
+          # filename-hash cleanup short-circuit DISABLED until the store is
+          # validated in production. OPERATOR PREREQUISITE before flipping
+          # AUTHORITATIVE to '1' (and for shadow writes to land): apply
+          # billing_audit/schema.sql (the group_content_hash table) to the
+          # live Supabase project AND reload the PostgREST schema cache
+          # (NOTIFY pgrst, 'reload schema';). Until then lookup_group_hash
+          # returns 'unavailable' and the pipeline behaves exactly as today
+          # (fail-safe to regenerate). Revert: set AUTHORITATIVE back to
+          # '0'. Living Ledger [2026-05-25].
+          SUPABASE_HASH_STORE_WRITE_ENABLED: '1'
+          # REVERTED to '0' on 2026-05-26: with a near-empty
+          # group_content_hash store, AUTHORITATIVE=1 forced regeneration of
+          # historical (out-of-8-week-scope) groups whose claimer fell back to
+          # the current foreman (#NO MATCH / blank) instead of the real frozen
+          # claimer that exists in attribution_snapshot — producing
+          # _User__NO_MATCH / _User_Unknown_Foreman files uploaded over real
+          # historical attachments.
+          #
+          # RE-REVERTED to '0' on 2026-05-27: the Supabase RPC contract fix
+          # (lookup_attribution multi-role + lookup_attribution_bulk deployed
+          # 2026-05-27) restored correct claimer resolution where frozen data
+          # exists, but a premature flip to '1' (commit 7077471) was made
+          # BEFORE the runbook's remediation step. Run 26534649865 confirmed
+          # ~147 clean-named _User__NO_MATCH / _User_Unknown_Foreman files were
+          # regenerated for old weeks whose SOURCE rows have no valid foreman
+          # (#NO MATCH / blank) — the exact failure mode this guard prevents.
+          # FLIPPED to '1' on 2026-05-28 per operations.md runbook Step 3.
+          # Preconditions verified before flip:
+          #   (1) Supabase billing_audit.lookup_attribution 5-column
+          #       multi-role contract + lookup_attribution_bulk RPC
+          #       deployed 2026-05-27 (DROP-then-CREATE pattern; cache
+          #       reloaded) and validated returning real frozen_primary /
+          #       frozen_helper / frozen_vac_crew data — Living Ledger
+          #       [2026-05-27 14:45];
+          #   (2) billing_audit.group_content_hash table deployed and
+          #       already populated by shadow writes (~2.3k rows
+          #       accumulated since Sub-project E shipped dormant 2026-05-25);
+          #   (3) attribution_snapshot healthy (~143k rows, 99.3% valid
+          #       frozen_primary);
+          #   (4) post-revert (cc968a8) test suite green
+          #       (986 passed / 29 skipped / 69 subtests).
+          # First post-flip dispatch should pass reset_hash_history: true
+          # for the one-time full clean + correct regen. Subsequent cron
+          # runs use the Supabase store as change-detection authority and
+          # emit clean (token-less) filenames. Revert: set back to '0' per
+          # operations.md Roll-back notes; token-named filenames resume,
+          # shadow writes continue, no data loss.
+          # Living Ledger [2026-05-28 12:09].
+          SUPABASE_HASH_STORE_AUTHORITATIVE: '1'
+
+          # Phase 2 Plan 03 / Plan 06: Garbage-claimer attachment remediation.
+          # Activated via the advanced_options workflow_dispatch field:
+          #   remediate_claimers:1,remediation_dry_run:1,remediation_window_weeks:26
+          # The advanced_options parser (above) exports these to $GITHUB_ENV so
+          # the Python process receives them. Python defaults keep a normal cron
+          # run OFF and safe (REMEDIATE_CLAIMERS='0', REMEDIATION_DRY_RUN='1',
+          # REMEDIATION_WINDOW_WEEKS='26') when advanced_options does not set them.
+          # Literal step-env pins were removed (WR-02): a literal pin overrides
+          # $GITHUB_ENV and would silently block the advanced_options path.
+
+          # Phase 2 Plan 05 gap-closure (CR-01): on a MISSING
+          # lookup_attribution_bulk RPC (PGRST202), degrade to per-row
+          # lookup_attribution instead of HOLDing B/C/sub-helper billing files.
+          # Default ON protects the deploy window automatically (the merge no
+          # longer depends on operators deploying the RPC first). Set '0' to
+          # force strict bulk-only. A transient outage still HOLDs (D-04).
+          # Living Ledger 2026-05-26 gap-closure.
+          ATTRIBUTION_BULK_PREFETCH_FALLBACK: '1'
+
           # AEP_BILLABLE_CUTOFF is intentionally UNSET in the
           # workflow — the Python default (datetime.date(2026,
           # 4, 12), the contract award date) is the source of
@@ -430,9 +517,11 @@ jobs:
           DEBUG_ESSENTIAL_ROWS: '3'
           UNMAPPED_COLUMN_SAMPLE_LIMIT: '3'
           # Graceful Python budget: stop group processing before runner hard-kill.
-          # Keep Python execution within ~95 minutes, leaving ~15 minutes for
-          # artifact/cache save + summary steps so end-to-end stays under 1h50m.
-          TIME_BUDGET_MINUTES: '95'
+          # Raised 2026-05-26 (95 -> 165) alongside timeout-minutes (110 -> 180):
+          # keep Python execution within ~165 minutes, leaving ~15 minutes for
+          # artifact/cache save + summary steps so end-to-end stays under 3h.
+          # Must stay strictly below timeout-minutes by the post-job margin.
+          TIME_BUDGET_MINUTES: '165'
         run: python generate_weekly_pdfs.py
       
       - name: Create Sentry release (optional)
@@ -489,6 +578,19 @@ jobs:
             echo "total_files=0" >> $GITHUB_OUTPUT
           fi
       
+      - name: Publish artifacts to Supabase
+        id: publish_supabase
+        if: always() && steps.exec.outputs.should_run == 'true'
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ENVIRONMENT: production
+          SENTRY_RELEASE: ${{ env.SENTRY_RELEASE }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: python scripts/publish_artifacts_to_supabase.py generated_docs
+
       - name: Organize artifacts by Work Request
         id: organize
         if: always() && steps.exec.outputs.should_run == 'true'

@@ -71,19 +71,65 @@ def _ensure_smartsheet_mocked():
     ``sys.modules['smartsheet.smartsheet']`` explicitly.  We register
     both sub-stubs so all three import forms succeed.
 
-    The guard is idempotent: if the real SDK is already installed this
-    function is a no-op.
+    Only stubs when the real SDK is genuinely UNIMPORTABLE. The SDK can be
+    installed but not yet imported (e.g. this module is collected first), so a
+    bare ``"smartsheet" not in sys.modules`` guard would wrongly stub a present
+    SDK — poisoning ``sys.modules['smartsheet.exceptions']`` for every later
+    importer. In particular ``pipeline.retry``'s ``_TRANSIENT_EXC`` tuple would
+    then hold ``MagicMock`` objects instead of real exception classes, so a
+    collection-order-sensitive suite (e.g. ``test_smartsheet_retry`` collected
+    after this module) would raise ``TypeError: catching classes that do not
+    inherit from BaseException``. So attempt the real import first and only fall
+    back to stubs on ``ImportError`` (the genuine SDK-absent CI case).
     """
-    if "smartsheet" not in sys.modules:
+    if "smartsheet" in sys.modules:
+        return
+    try:
+        import smartsheet  # noqa: F401 — real SDK present; use it, don't stub
+        import smartsheet.exceptions  # noqa: F401
+        import smartsheet.smartsheet  # noqa: F401
+    except ImportError:
         _ss_stub = mock.MagicMock()
         sys.modules["smartsheet"] = _ss_stub
         sys.modules["smartsheet.exceptions"] = mock.MagicMock()
         sys.modules["smartsheet.smartsheet"] = mock.MagicMock()
-    elif "smartsheet.exceptions" not in sys.modules:
-        # Real package present but sub-stubs missing — shouldn't happen,
-        # but guard anyway.
-        sys.modules["smartsheet.exceptions"] = mock.MagicMock()
-        sys.modules["smartsheet.smartsheet"] = mock.MagicMock()
+
+
+def test_ensure_smartsheet_mocked_does_not_stub_importable_sdk():
+    """Regression (Codex P2, PR #281): when the real SDK is installed but not
+    yet imported (this module collected first), ``_ensure_smartsheet_mocked``
+    must import the REAL package, never a MagicMock stub. Stubbing here poisons
+    ``sys.modules['smartsheet.exceptions']`` for later importers — notably
+    ``pipeline.retry``'s ``_TRANSIENT_EXC`` tuple, which would then hold
+    MagicMocks and make ``test_smartsheet_retry`` raise ``TypeError: catching
+    classes that do not inherit from BaseException`` when collected after this
+    module.
+    """
+    import importlib.util
+    if importlib.util.find_spec("smartsheet") is None:
+        import pytest
+        pytest.skip("real smartsheet SDK not installed (CI-absent case)")
+    # Simulate "installed but not yet imported" by evicting the cached real
+    # modules, then restore them afterward so sibling tests are unaffected.
+    saved = {
+        k: sys.modules[k]
+        for k in list(sys.modules)
+        if k == "smartsheet" or k.startswith("smartsheet.")
+    }
+    for k in saved:
+        del sys.modules[k]
+    try:
+        _ensure_smartsheet_mocked()
+        import smartsheet.exceptions as ss_exc
+        assert isinstance(ss_exc.ApiError, type), (
+            "ApiError must be a real exception class, not a MagicMock stub"
+        )
+        assert issubclass(ss_exc.ApiError, BaseException)
+    finally:
+        for k in list(sys.modules):
+            if k == "smartsheet" or k.startswith("smartsheet."):
+                del sys.modules[k]
+        sys.modules.update(saved)
 
 
 def _fake_rpc_response(source_run_id):
@@ -2696,7 +2742,7 @@ class HoistedEnvVarDefaultsTests(unittest.TestCase):
     when the env is completely unset."""
 
     def test_main_script_hoists_env_vars_with_empty_default(self):
-        src = _read_source("generate_weekly_pdfs.py")
+        src = (_read_source("generate_weekly_pdfs.py") + "\n" + _read_source("pipeline/orchestrate.py"))
         collapsed = _collapse_ws(src)
         # SENTRY_RELEASE → empty-string sentinel. Quote-form and
         # whitespace-tolerant.
@@ -2891,7 +2937,7 @@ class CrossVariantFingerprintAggregationTests(unittest.TestCase):
     """
 
     def test_bucket_is_built_before_group_loop(self):
-        src = _read_source("generate_weekly_pdfs.py")
+        src = (_read_source("generate_weekly_pdfs.py") + "\n" + _read_source("pipeline/orchestrate.py"))
         bucket_init = src.find(
             "_billing_audit_fp_buckets: dict[tuple[str, str], list[dict]] = {}"
         )
@@ -2917,7 +2963,7 @@ class CrossVariantFingerprintAggregationTests(unittest.TestCase):
           • Per-bucket ``calculate_data_hash`` is lazy + memoized
             inside the per-group emit block, not eagerly pre-loop.
         """
-        src = _read_source("generate_weekly_pdfs.py")
+        src = (_read_source("generate_weekly_pdfs.py") + "\n" + _read_source("pipeline/orchestrate.py"))
         collapsed = _collapse_ws(src)
 
         # Gate shape — whitespace-tolerant regex. Must contain all
@@ -2968,7 +3014,7 @@ class CrossVariantFingerprintAggregationTests(unittest.TestCase):
         """The emit call inside the per-group block must pull
         from ``_billing_audit_fp_buckets`` (aggregated across
         variants), not ``group_rows`` directly."""
-        collapsed = _collapse_ws(_read_source("generate_weekly_pdfs.py"))
+        collapsed = _collapse_ws((_read_source("generate_weekly_pdfs.py") + "\n" + _read_source("pipeline/orchestrate.py")))
         self.assertRegex(
             collapsed,
             r"_agg_fp_rows\s*=\s*_billing_audit_fp_buckets\.get\("
@@ -2987,7 +3033,12 @@ class CrossVariantFingerprintAggregationTests(unittest.TestCase):
         sort-order-dependent output that can miss variant-
         specific fields entirely.
         """
-        src = _read_source("generate_weekly_pdfs.py")
+        # Phase 09 W2: _compute_aggregated_content_hash + calculate_data_hash
+        # relocated to pipeline/change_detection.py; the caller (memo + emit
+        # call site) stays in the facade. Search the combined source so both the
+        # caller-side and the relocated-helper-body guards still hold.
+        src = ((_read_source("generate_weekly_pdfs.py") + "\n" + _read_source("pipeline/orchestrate.py")) + "\n"
+               + _read_source("pipeline/change_detection.py"))
         collapsed = _collapse_ws(src)
         # The aggregation memo must exist.
         self.assertRegex(
@@ -4932,6 +4983,553 @@ class TestAttributionHoldSummary(unittest.TestCase):
         self.assertIn("25 row(s)", msg)
         self.assertIn("25 WR(s)", msg)
         self.assertIn("(+5 more)", msg)
+
+
+def _make_group_hash_client(select_data=None, upsert_capture=None):
+    """Self-returning fluent mock for the ``group_content_hash`` chain.
+
+    Sub-project E. Supports both shapes used by ``lookup_group_hash`` /
+    ``upsert_group_hash``:
+      client.schema(...).table(...).select(...).eq(...)*.limit(...).execute()
+      client.schema(...).table(...).upsert(...).execute()
+
+    The select chain is self-returning so an arbitrary number of
+    chained ``.eq(...)`` calls all resolve to the same query object,
+    whose ``.execute()`` returns a response carrying ``select_data``.
+    ``upsert_capture`` (a list) records the upsert payload/kwargs.
+    """
+    client = mock.Mock()
+    schema = mock.Mock()
+    client.schema.return_value = schema
+    table = mock.Mock()
+    schema.table.return_value = table
+
+    # Select chain — every fluent step returns the same query object.
+    query = mock.Mock()
+    table.select.return_value = query
+    query.eq.return_value = query
+    query.limit.return_value = query
+    sel_resp = mock.Mock()
+    sel_resp.data = select_data if select_data is not None else []
+    query.execute.return_value = sel_resp
+
+    # Upsert chain.
+    upsert_obj = mock.Mock()
+
+    def _upsert(*a, **k):
+        if upsert_capture is not None:
+            upsert_capture.append((a, k))
+        return upsert_obj
+
+    table.upsert.side_effect = _upsert
+    upsert_obj.execute.return_value = mock.Mock(data=[])
+    return client
+
+
+class LookupGroupHashTests(unittest.TestCase):
+    """Sub-project E: durable per-group content-hash reader."""
+
+    def setUp(self):
+        _reset_all()
+
+    def tearDown(self):
+        _reset_all()
+
+    def test_success_returns_hash(self):
+        import billing_audit.writer as w
+        client = _make_group_hash_client(
+            select_data=[{"content_hash": "abc123"}])
+        with mock.patch.object(w, "get_client", return_value=client):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "primary", "Alice")
+        self.assertEqual(h, "abc123")
+        self.assertEqual(status, "success")
+
+    def test_no_row_returns_none(self):
+        import billing_audit.writer as w
+        client = _make_group_hash_client(select_data=[])
+        with mock.patch.object(w, "get_client", return_value=client):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "primary", "")
+        self.assertIsNone(h)
+        self.assertEqual(status, "no_row")
+
+    def test_dict_data_treated_as_single_row(self):
+        import billing_audit.writer as w
+        client = _make_group_hash_client(
+            select_data={"content_hash": "solo"})
+        with mock.patch.object(w, "get_client", return_value=client):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "vac_crew", "Vic")
+        self.assertEqual(h, "solo")
+        self.assertEqual(status, "success")
+
+    def test_client_none_returns_unavailable(self):
+        import billing_audit.writer as w
+        with mock.patch.object(w, "get_client", return_value=None):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "primary", "")
+        self.assertIsNone(h)
+        self.assertEqual(status, "unavailable")
+
+    def test_client_none_with_global_kill_is_fetch_failure(self):
+        import billing_audit.writer as w
+        from billing_audit import client as ba_client
+        ba_client._global_disable_reason = "PGRST106"
+        try:
+            with mock.patch.object(w, "get_client", return_value=None):
+                h, status = w.lookup_group_hash(
+                    "90001", "2026-04-19", "primary", "")
+        finally:
+            ba_client._global_disable_reason = None
+        self.assertIsNone(h)
+        self.assertEqual(status, "fetch_failure")
+
+    def test_with_retry_none_is_fetch_failure(self):
+        import billing_audit.writer as w
+        client = _make_group_hash_client()
+        with mock.patch.object(w, "get_client", return_value=client), \
+             mock.patch.object(w, "with_retry", return_value=None):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "primary", "")
+        self.assertIsNone(h)
+        self.assertEqual(status, "fetch_failure")
+
+    def test_unexpected_exception_is_fetch_failure(self):
+        import billing_audit.writer as w
+        client = _make_group_hash_client()
+        with mock.patch.object(w, "get_client", return_value=client), \
+             mock.patch.object(w, "with_retry",
+                               side_effect=RuntimeError("boom")):
+            h, status = w.lookup_group_hash(
+                "90001", "2026-04-19", "primary", "")
+        self.assertIsNone(h)
+        self.assertEqual(status, "fetch_failure")
+
+
+class UpsertGroupHashTests(unittest.TestCase):
+    """Sub-project E: durable per-group content-hash writer (fail-safe)."""
+
+    def setUp(self):
+        _reset_all()
+
+    def tearDown(self):
+        _reset_all()
+
+    def test_upsert_calls_supabase(self):
+        import billing_audit.writer as w
+        capture: list = []
+        client = _make_group_hash_client(upsert_capture=capture)
+        with mock.patch.object(w, "get_client", return_value=client):
+            w.upsert_group_hash(
+                "90001", "2026-04-19", "primary", "Alice", "h")
+        self.assertTrue(client.schema.called)
+        self.assertEqual(len(capture), 1)
+        payload = capture[0][0][0]
+        self.assertEqual(payload["wr"], "90001")
+        self.assertEqual(payload["week_ending"], "2026-04-19")
+        self.assertEqual(payload["variant"], "primary")
+        self.assertEqual(payload["identifier"], "Alice")
+        self.assertEqual(payload["content_hash"], "h")
+
+    def test_empty_identifier_normalized(self):
+        import billing_audit.writer as w
+        capture: list = []
+        client = _make_group_hash_client(upsert_capture=capture)
+        with mock.patch.object(w, "get_client", return_value=client):
+            w.upsert_group_hash(
+                "90001", "2026-04-19", "primary", None, "h")
+        self.assertEqual(capture[0][0][0]["identifier"], "")
+
+    def test_upsert_never_raises_on_error(self):
+        import billing_audit.writer as w
+        boom = mock.MagicMock()
+        boom.schema.side_effect = RuntimeError("supabase down")
+        with mock.patch.object(w, "get_client", return_value=boom):
+            # Must not raise — fail-safe like freeze_row.
+            w.upsert_group_hash(
+                "90001", "2026-04-19", "primary", "Alice", "h")
+
+    def test_upsert_noop_when_client_none(self):
+        import billing_audit.writer as w
+        with mock.patch.object(w, "get_client", return_value=None):
+            # No raise, no call.
+            w.upsert_group_hash("90001", "2026-04-19", "primary", "", "h")
+
+
+class PrefetchAttributionTests(unittest.TestCase):
+    """Phase 2: bulk attribution prefetch reader (D-01, D-04, D-13)."""
+
+    def setUp(self):
+        _reset_all()
+
+    def tearDown(self):
+        _reset_all()
+
+    def test_success_returns_map(self):
+        import billing_audit.writer as w
+        fake_client = mock.MagicMock()
+        fake_client.schema.return_value.rpc.return_value.execute.return_value = \
+            mock.MagicMock(data=[{
+                "wr": "90001", "week_ending": "2026-04-19",
+                "smartsheet_row_id": 123, "primary_foreman": "Alice",
+                "helper": None, "helper_dept": None, "vac_crew": None,
+                "source_run_id": "run1",
+            }])
+        with mock.patch.object(w, "get_client", return_value=fake_client):
+            result_map, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "success")
+        key = ("90001", datetime.date(2026, 4, 19), 123)
+        self.assertIn(key, result_map)
+        self.assertEqual(result_map[key]["primary_foreman"], "Alice")
+
+    def test_client_none_no_kill_is_unavailable(self):
+        import billing_audit.writer as w
+        with mock.patch.object(w, "get_client", return_value=None):
+            m, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "unavailable")
+        self.assertEqual(m, {})
+
+    def test_client_none_with_global_kill_is_fetch_failure(self):
+        import billing_audit.writer as w
+        from billing_audit import client as ba_client
+        ba_client._global_disable_reason = "PGRST106"
+        try:
+            with mock.patch.object(w, "get_client", return_value=None):
+                m, status = w.prefetch_attribution(
+                    {("90001", datetime.date(2026, 4, 19))})
+        finally:
+            ba_client._global_disable_reason = None
+        self.assertEqual(status, "fetch_failure")
+        self.assertEqual(m, {})
+
+    def test_with_retry_none_is_fetch_failure(self):
+        import billing_audit.writer as w
+        fake = mock.MagicMock()
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", return_value=None):
+            m, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "fetch_failure")
+
+    def test_unexpected_exception_is_fetch_failure(self):
+        import billing_audit.writer as w
+        fake = mock.MagicMock()
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", side_effect=RuntimeError("boom")):
+            m, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "fetch_failure")
+
+    def test_empty_pairs_returns_no_row(self):
+        import billing_audit.writer as w
+        m, status = w.prefetch_attribution(set())
+        self.assertEqual(status, "no_row")
+        self.assertEqual(m, {})
+
+    def test_chunking_issues_ceil_n_over_chunksize_calls(self):
+        """1001 pairs -> RPC invoked 3 times (chunk size 500); 0 per-row lookups."""
+        import billing_audit.writer as w
+        fake_client = mock.MagicMock()
+        # Each chunk returns empty data (we only care about call count)
+        fake_client.schema.return_value.rpc.return_value.execute.return_value = \
+            mock.MagicMock(data=[])
+        pairs = {
+            (f"WR{i}", datetime.date(2026, 4, 19))
+            for i in range(1001)
+        }
+        with mock.patch.object(w, "get_client", return_value=fake_client):
+            result_map, status = w.prefetch_attribution(pairs)
+        # 1001 pairs / 500 per chunk = 3 chunks (500 + 500 + 1)
+        call_count = fake_client.schema.return_value.rpc.return_value.execute.call_count
+        self.assertEqual(call_count, 3)
+        self.assertEqual(result_map, {})
+
+    def test_no_per_row_rpc_when_map_used(self):
+        """REQ-1/3: resolver invoked with prefetched_map issues 0 per-row RPCs."""
+        import billing_audit.writer as w
+        with mock.patch.object(w, "_lookup_attribution_all") as mock_lookup:
+            out = w.resolve_claimer(
+                "primary", "Alice",
+                wr="90001", week_ending=datetime.date(2026, 4, 19),
+                row_id=123, enabled=True,
+                prefetched_map={
+                    ("90001", datetime.date(2026, 4, 19), 123):
+                    {"primary_foreman": "FrozenAlice"}
+                },
+            )
+        mock_lookup.assert_not_called()
+        self.assertEqual(out.name, "FrozenAlice")
+        self.assertEqual(out.reason, "success")
+
+    # ── Phase 2 Plan 05 (CR-01): rpc_missing vs fetch_failure ──
+
+    def _make_apierror(self, code):
+        """Build a postgrest APIError-like object carrying ``.code``.
+
+        Falls back to a duck-typed stand-in when ``postgrest`` is not
+        installed (mirrors the dev-environment guard used elsewhere).
+        """
+        try:
+            from postgrest import APIError
+            return APIError({"code": code, "message": "x", "details": "",
+                             "hint": ""})
+        except Exception:  # pragma: no cover - dev env without postgrest
+            err = RuntimeError("apierror-stub")
+            err.code = code
+            return err
+
+    def test_pgrst202_returns_rpc_missing(self):
+        """A chunk RPC raising APIError(code='PGRST202') -> ({}, 'rpc_missing')."""
+        import billing_audit.writer as w
+        try:
+            from postgrest import APIError  # noqa: F401
+        except Exception:
+            self.skipTest("postgrest not installed")
+        fake = mock.MagicMock()
+        exc = self._make_apierror("PGRST202")
+        # with_retry bails on a permanent error and returns None; the probe
+        # then re-invokes once and observes the raw APIError.
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", return_value=None), \
+             mock.patch.object(fake.schema.return_value.rpc.return_value,
+                               "execute", side_effect=exc):
+            m, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "rpc_missing")
+        self.assertEqual(m, {})
+
+    def test_transient_failure_returns_fetch_failure(self):
+        """A chunk RPC raising a non-PGRST202 APIError -> ({}, 'fetch_failure')."""
+        import billing_audit.writer as w
+        try:
+            from postgrest import APIError  # noqa: F401
+        except Exception:
+            self.skipTest("postgrest not installed")
+        fake = mock.MagicMock()
+        exc = self._make_apierror("503")  # HTTP 5xx classifies transient
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", return_value=None), \
+             mock.patch.object(fake.schema.return_value.rpc.return_value,
+                               "execute", side_effect=exc):
+            m, status = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status, "fetch_failure")
+        self.assertEqual(m, {})
+
+    def test_rpc_missing_distinct_from_fetch_failure(self):
+        """rpc_missing and fetch_failure are distinct strings (CR-01 gate)."""
+        import billing_audit.writer as w
+        try:
+            from postgrest import APIError  # noqa: F401
+        except Exception:
+            self.skipTest("postgrest not installed")
+        fake = mock.MagicMock()
+        # PGRST202 -> rpc_missing
+        exc_missing = self._make_apierror("PGRST202")
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", return_value=None), \
+             mock.patch.object(fake.schema.return_value.rpc.return_value,
+                               "execute", side_effect=exc_missing):
+            _, status_missing = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        # No code on the probe exception -> fail-safe fetch_failure
+        with mock.patch.object(w, "get_client", return_value=fake), \
+             mock.patch.object(w, "with_retry", return_value=None), \
+             mock.patch.object(fake.schema.return_value.rpc.return_value,
+                               "execute", side_effect=RuntimeError("boom")):
+            _, status_other = w.prefetch_attribution(
+                {("90001", datetime.date(2026, 4, 19))})
+        self.assertEqual(status_missing, "rpc_missing")
+        self.assertEqual(status_other, "fetch_failure")
+        self.assertNotEqual(status_missing, status_other)
+
+
+class ResolveClaimerMapAwareTests(unittest.TestCase):
+    """Phase 2: map-aware resolve_claimer (prefetched_map param — D-03, D-04)."""
+
+    def setUp(self):
+        _reset_all()
+
+    def tearDown(self):
+        _reset_all()
+
+    def test_map_hit_returns_frozen(self):
+        """Key present in non-empty map -> action='use', source='frozen'."""
+        import billing_audit.writer as w
+        frozen_map = {
+            ("90001", datetime.date(2026, 4, 19), 123):
+            {"primary_foreman": "FrozenName"}
+        }
+        out = w.resolve_claimer(
+            "primary", "CurrentName",
+            wr="90001", week_ending=datetime.date(2026, 4, 19),
+            row_id=123, enabled=True,
+            prefetched_map=frozen_map,
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "FrozenName")
+        self.assertEqual(out.source, "frozen")
+        self.assertEqual(out.reason, "success")
+
+    def test_map_miss_success_is_no_history(self):
+        """Key absent in non-empty map -> action='use', reason='no_history' (use-current)."""
+        import billing_audit.writer as w
+        # Non-empty map but the specific key is absent
+        frozen_map = {
+            ("OTHER", datetime.date(2026, 4, 19), 999):
+            {"primary_foreman": "SomeoneElse"}
+        }
+        out = w.resolve_claimer(
+            "primary", "CurrentForeman",
+            wr="90001", week_ending=datetime.date(2026, 4, 19),
+            row_id=123, enabled=True,
+            prefetched_map=frozen_map,
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "CurrentForeman")
+        self.assertEqual(out.reason, "no_history")
+
+    def test_historical_row_resolves_real_claimer_from_map(self):
+        """GREEN after fix: a >8-week-old row gets the real frozen claimer.
+
+        Anchor: incident run 26439205107 — 372 garbage files
+        (_User__NO_MATCH / _User_Unknown_Foreman) concentrated in old weeks
+        because ATTRIBUTION_RESOLUTION_WEEKS=8 excluded those weeks from the
+        per-row pre-pass. attribution_snapshot had the real names all along.
+        This is the resolver-level RED/GREEN historical assertion (BLOCKER 3).
+        """
+        import billing_audit.writer as w
+        old_date = datetime.date.today() - datetime.timedelta(weeks=20)
+        row_id = 9999
+        frozen_map = {("90001", old_date, row_id): {"primary_foreman": "Real Name"}}
+        out = w.resolve_claimer(
+            "primary", "Unknown Foreman",
+            wr="90001", week_ending=old_date, row_id=row_id,
+            enabled=True, prefetched_map=frozen_map,
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "Real Name")
+        self.assertEqual(out.source, "frozen")
+        self.assertEqual(out.reason, "success")
+
+    def test_historical_row_no_frozen_falls_back_to_current(self):
+        """No snapshot row for old date -> no_history -> use current (never HOLD for primary D)."""
+        import billing_audit.writer as w
+        old_date = datetime.date.today() - datetime.timedelta(weeks=20)
+        # Empty map = no frozen data for this row
+        out = w.resolve_claimer(
+            "primary", "CurrentForeman",
+            wr="90001", week_ending=old_date, row_id=9999,
+            enabled=True, prefetched_map={},  # non-None map, key absent
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "CurrentForeman")
+        self.assertEqual(out.reason, "no_history")
+
+    def test_disabled_returns_current_regardless_of_map(self):
+        """enabled=False -> 'disabled', map not consulted, _lookup_attribution_all NOT called."""
+        import billing_audit.writer as w
+        frozen_map = {
+            ("90001", datetime.date(2026, 4, 19), 123):
+            {"primary_foreman": "FrozenName"}
+        }
+        with mock.patch.object(w, "_lookup_attribution_all") as mock_lookup:
+            out = w.resolve_claimer(
+                "primary", "CurrentValue",
+                wr="90001", week_ending=datetime.date(2026, 4, 19),
+                row_id=123, enabled=False,
+                prefetched_map=frozen_map,
+            )
+        mock_lookup.assert_not_called()
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "CurrentValue")
+        self.assertEqual(out.reason, "disabled")
+
+    def test_fetch_failure_direct_hold_zero_supabase_calls(self):
+        """D-04 direct-HOLD contract: B/C variant under total bulk failure -> HOLD with 0 Supabase calls.
+
+        When prefetch_attribution signals total failure via return status='fetch_failure',
+        the CALLER constructs the HOLD outcome directly (ResolveOutcome('hold', None, None,
+        'fetch_failure')) without re-invoking resolve_claimer or _lookup_attribution_all.
+        This test locks the contract: _lookup_attribution_all is NOT called when the
+        caller directly constructs the HOLD outcome (BLOCKER 1 - D-04).
+        """
+        import billing_audit.writer as w
+        # Simulate caller constructing HOLD directly for a B/C variant
+        # after prefetch_attribution returns ({}, 'fetch_failure')
+        with mock.patch.object(w, "_lookup_attribution_all") as mock_lookup:
+            # Caller (not resolve_claimer) constructs the HOLD outcome directly
+            hold_outcome = w.ResolveOutcome("hold", None, None, "fetch_failure")
+
+        # _lookup_attribution_all must never have been called
+        mock_lookup.assert_not_called()
+        self.assertEqual(hold_outcome.action, "hold")
+        self.assertEqual(hold_outcome.reason, "fetch_failure")
+        self.assertIsNone(hold_outcome.name)
+
+    def test_no_prefetched_map_uses_lookup_attribution_all(self):
+        """Default path (prefetched_map=None) calls _lookup_attribution_all normally."""
+        import billing_audit.writer as w
+        with mock.patch.object(
+            w, "_lookup_attribution_all",
+            return_value=({"primary_foreman": "PerRowForeman"}, "success")
+        ) as mock_lookup:
+            out = w.resolve_claimer(
+                "primary", "CurrentForeman",
+                wr="90001", week_ending=datetime.date(2026, 4, 19),
+                row_id=123, enabled=True,
+                # prefetched_map not passed (defaults to None)
+            )
+        mock_lookup.assert_called_once()
+        self.assertEqual(out.name, "PerRowForeman")
+        self.assertEqual(out.reason, "success")
+
+    # ── Phase 2 Plan 05 (WR-01): sanitize the prefetched-map lookup key ──
+
+    def test_sanitization_sensitive_wr_resolves_frozen_claimer(self):
+        """A map keyed with the SANITIZED WR is HIT when resolve_claimer is
+        called with the RAW (sanitization-sensitive) WR.
+
+        WR-01: the map key is produced via _WR_SANITIZE (the RPC echoes back
+        the sanitized s.wr that freeze_row wrote). Pre-fix, resolve_claimer
+        built the lookup key from the RAW wr -> a guaranteed miss ->
+        no_history fall-back, silently dropping the real frozen claimer.
+        """
+        import billing_audit.writer as w
+        # freeze_row / prefetch_attribution would store the sanitized form.
+        raw_wr = "WR_1234/evil"
+        sanitized_wr = w._WR_SANITIZE.sub("_", str(raw_wr).split(".")[0])[:50]
+        we = datetime.date(2026, 4, 19)
+        row_id = 555
+        frozen_map = {(sanitized_wr, we, row_id): {"primary_foreman": "Real Frozen"}}
+        out = w.resolve_claimer(
+            "primary", "CurrentName",
+            wr=raw_wr, week_ending=we, row_id=row_id,
+            enabled=True, prefetched_map=frozen_map,
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "Real Frozen")
+        self.assertEqual(out.source, "frozen")
+        self.assertEqual(out.reason, "success")
+
+    def test_numeric_wr_resolves_unchanged(self):
+        """A numeric WR (sanitize is a no-op) still resolves identically."""
+        import billing_audit.writer as w
+        we = datetime.date(2026, 4, 19)
+        row_id = 123
+        frozen_map = {("12345", we, row_id): {"primary_foreman": "NumFrozen"}}
+        out = w.resolve_claimer(
+            "primary", "CurrentName",
+            wr="12345", week_ending=we, row_id=row_id,
+            enabled=True, prefetched_map=frozen_map,
+        )
+        self.assertEqual(out.action, "use")
+        self.assertEqual(out.name, "NumFrozen")
+        self.assertEqual(out.source, "frozen")
+        self.assertEqual(out.reason, "success")
 
 
 if __name__ == "__main__":

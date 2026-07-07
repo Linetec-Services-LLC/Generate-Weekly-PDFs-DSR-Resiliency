@@ -2,28 +2,38 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Skeleton } from '../ui/Skeleton';
-import { USE_MOCK } from '../../lib/mockData';
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
-  // In demo/mock mode (no backend configured), bypass auth entirely so the
-  // dashboard is accessible for preview and testing.
-  const isDemoMode = USE_MOCK;
+  // Authorization is not resolved until we know the session AND, for a
+  // logged-in user, their profile (role). useAuth resolves the session
+  // (loading=false) and the profile in two separate async steps, so there is a
+  // window where `user` is set but `profile` is still null. Treat that as still
+  // resolving — otherwise a pending user transiently renders the dashboard
+  // shell before the /pending redirect fires (SEC-04 HIGH-03). A logged-in user
+  // always has a profiles row (handle_new_user trigger), so `user && !profile`
+  // means "fetch in flight", not "no profile".
+  const resolving = loading || (Boolean(user) && !profile);
 
   useEffect(() => {
-    if (isDemoMode) return; // Skip redirect in demo mode
-    if (!loading && !user) {
+    if (resolving) return;
+    if (!user) {
       navigate('/login', { replace: true });
+      return;
     }
-  }, [user, loading, navigate, isDemoMode]);
+    // Pending users must not reach the dashboard (D-07, D-15).
+    if (profile?.role === 'pending') {
+      navigate('/pending', { replace: true });
+    }
+  }, [user, profile, resolving, navigate]);
 
-  if (!isDemoMode && loading) {
+  if (resolving) {
     return (
       <div className="min-h-screen bg-slate-50 p-8 space-y-4">
         <Skeleton className="h-16 w-full" />
@@ -38,7 +48,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!isDemoMode && !user) return null;
-
+  // Block render while redirecting pending users (avoids flash of dashboard).
+  if (!user || profile?.role === 'pending') return null;
   return <>{children}</>;
 }
