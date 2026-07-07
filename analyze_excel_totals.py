@@ -10,7 +10,7 @@ import logging
 from collections import defaultdict
 from generate_weekly_pdfs import (
     discover_source_sheets, get_all_source_rows, group_source_rows,
-    parse_price, is_checked, excel_serial_to_date
+    parse_price, is_checked
 )
 import smartsheet
 
