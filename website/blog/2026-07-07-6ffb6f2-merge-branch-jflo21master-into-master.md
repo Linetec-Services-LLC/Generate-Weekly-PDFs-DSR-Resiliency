@@ -1,0 +1,753 @@
+---
+slug: 6ffb6f2-merge-branch-jflo21master-into-master
+title: "Merge branch 'JFlo21:master' into master (6ffb6f2)"
+authors: [runbook-bot]
+tags: [configuration, data, docs, github, other, portal, project, python, tests, workflows]
+date: 2026-07-07T02:36:04.069291+00:00
+---
+
+**Branch:** `master` &middot; **Commit:** [`6ffb6f2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6ffb6f216cdf38d32a188319c75fbdabe7c5da80) &middot; **Pusher:** `JFlo21`
+  
+[View the workflow run](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/actions/runs/28837481392).
+
+<!-- truncate -->
+
+## Commits in this push
+
+- [`6ffb6f2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6ffb6f2) — Merge branch 'JFlo21:master' into master
+- [`c563b90`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c563b90) — docs(runbook): log de43b79 [skip ci]
+- [`de43b79`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/de43b79) — fix: defer durable group-hash upsert until upload success (WR 90968595 skip-gate deadlock) (#283)
+- [`a7704af`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a7704af) — docs(runbook): log 5fb5983 [skip ci]
+- [`5fb5983`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5fb5983) — Add files via upload
+- [`666e551`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/666e551) — docs(runbook): log 8c51a3c [skip ci]
+- [`8c51a3c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8c51a3c) — fix: Smartsheet API resilience + silent-failure & PII hardening (#281)
+- [`c7ce451`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c7ce451) — docs(runbook): log 889ca2e [skip ci]
+- [`889ca2e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/889ca2e) — Merge PR #280: modularize billing engine into pipeline/ package (Phase 09)
+- [`ff20710`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ff20710) — fix: address Codex P2 review findings (oracle coverage + facade API)
+- [`071a71d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/071a71d) — fix: prevent facade double-import on direct execution (Greptile P1)
+- [`6044e7a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6044e7a) — ci: make codecov coverage informational (not a merge gate)
+- [`45df1ef`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/45df1ef) — docs+test: address PR #280 reviewer comments
+- [`2cfa942`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2cfa942) — fix: VAC pre-pass mirrors Units Completed? gate (LOW-01)
+- [`5005040`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5005040) — refactor: modularize billing engine into pipeline/ package (Phase 09)
+- [`a0ba96e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a0ba96e) — docs(runbook): log 47fe16d [skip ci]
+- [`47fe16d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/47fe16d) — fix: VAC-crew units go only to VAC crew, not foreman (#274)
+- [`812eafd`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/812eafd) — docs(runbook): log 0014680 [skip ci]
+- [`0014680`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0014680) — docs: start milestone v1.2 (smartsheet-python-sdk 4.0.0 migration)
+- [`59d41d4`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/59d41d4) — docs(quick-260608-gwm): pin smartsheet-python-sdk \<4.0.0 (CI import hotfix)
+- [`897e053`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/897e053) — docs(260608-gwm): pre-dispatch plan for smartsheet SDK pin
+- [`cd1631b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/cd1631b) — wip: pause PR-backlog triage at 5/12 (handoff)
+- [`dd6e0eb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/dd6e0eb) — docs(quick-260605-tgi): record Pylance type-error fix
+- [`274d3ea`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/274d3ea) — docs(gsd): mark cron-fix PR #264 merged in STATE front door
+- [`b320087`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b320087) — docs(gsd): record phase-07 verify/validate + cron-fix quick task
+- [`147f2bf`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/147f2bf) — docs(phase-07): verify-work UAT + Nyquist validation audit
+- [`a28daba`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a28daba) — docs(runbook): log a5c3fc8 [skip ci]
+- [`a5c3fc8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a5c3fc8) — fix: pin smartsheet-python-sdk \<4.0.0 to stop CI import crash (#273)
+- [`261d1c7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/261d1c7) — docs(runbook): log d3768d9 [skip ci]
+- [`67cc477`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/67cc477) — docs(runbook): log d03453f [skip ci]
+- [`d3768d9`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d3768d9) — docs(review): daily code review & quality audit — 2026-05-17 (#208)
+- [`d03453f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d03453f) — docs(frontend): clarify VITE_USE_MOCK usage in .env.example (#202)
+- [`20fa030`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/20fa030) — ci(docs-changelog): commit entry, no per-commit PR (#270)
+- [`1e264ea`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1e264ea) — Merge pull request #200 from JFlo21/copilot/add-health-check-workflow
+- [`3cfc845`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3cfc845) — Merge pull request #165 from JFlo21/dependabot/pip/pip-4ea199e985
+- [`53e2112`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/53e2112) — Merge pull request #260 from JFlo21/dependabot/npm_and_yarn/portal-v2/npm_and_yarn-c1e19e385f
+- [`cac64d3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/cac64d3) — Merge pull request #209 from JFlo21/codex/propose-fix-for-upload-authorization-vulnerability
+- [`0150133`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0150133) — Merge pull request #266 from JFlo21/fix/260605-tgi-pylance-type-errors
+- [`1c5caf9`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1c5caf9) — fix(sentry): clear 3 Pylance type errors
+- [`d60da4d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d60da4d) — Merge pull request #264 from JFlo21/fix/260605-cron-monitor-utc-timezone
+- [`80c7abb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/80c7abb) — fix(sentry-cron): monitor timezone UTC not Chicago
+- [`1132b09`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1132b09) — Add initial devcontainer configuration
+- [`0dda454`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0dda454) — Merge pull request #261 from JFlo21/quick/260603-mmc-old-rates-csv-sentry-plan
+- [`3be21c3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3be21c3) — docs(quick-260603-mmc): plan-02 + summary + state
+- [`d8a1121`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d8a1121) — docs(quick-260603-mmc-02): living ledger - Sentry telemetry KPI upgrades
+- [`1a33e14`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1a33e14) — feat(quick-260603-mmc-02): wire Sentry telemetry into main()
+- [`941021f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/941021f) — test+feat(quick-260603-mmc-02): TDD pure Sentry telemetry helpers
+- [`6d45d2c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6d45d2c) — docs: correct stale runner timeout values
+- [`a1b3a7d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a1b3a7d) — docs(quick-260603-mmc): summary + verification
+- [`d10aded`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d10aded) — docs(ledger): rate CSV optional skip + Sentry monitor fix
+- [`f5c2948`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f5c2948) — fix(sentry): correct monitor_config + PII-safe run-mode tags
+- [`094a5b0`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/094a5b0) — fix(rate-csv): make missing rate CSV a benign INFO skip
+- [`7750195`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7750195) — docs(quick-260603-mmc): plan OLD_RATES_CSV fix + Sentry modernization
+- [`0b24606`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0b24606) — chore(deps): bump the npm_and_yarn group across 2 directories with 4 updates
+- [`638ca10`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/638ca10) — docs(ledger): AuthGuard auth-resolution gate + auditor SECURITY.md footgun
+- [`9ed0c08`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9ed0c08) — docs(07-04): plan complete + v1.1 milestone closed (28/28)
+- [`76a99d3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/76a99d3) — docs(07-04): add 07-SECURITY.md threat verification (SEC-04)
+- [`515837b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/515837b) — fix(07-04): close SEC-04 HIGH-03 + drop stale schema draft
+- [`4dbbc29`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4dbbc29) — docs(07-04): mark Task 1 complete (CVE triage)
+- [`3eb5df6`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3eb5df6) — wip: phase 07-04 paused at task 1/2 (CVE remediation + SEC-04 audit)
+- [`6dd1ed8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6dd1ed8) — fix(07-04): remediate critical/high CVEs (vitest@^4) + defer moderates
+- [`933f076`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/933f076) — docs(07-03): mark plan complete in STATE + ROADMAP
+- [`daa3184`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/daa3184) — docs(07-03): summary - Express removed, CSP enforcing, smoke test PASS
+- [`03153c3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/03153c3) — feat(07-03): remove portal/ Express backend + flip CSP to enforcing
+- [`a84f0ad`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a84f0ad) — refactor(07-03): sever portal-v2 Express coupling
+- [`28d95f8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/28d95f8) — docs(quick-260602-nws): fix stuck Sign Out on Pending Approval + UI upgrade
+- [`264efc3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/264efc3) — fix(260602-nws): redirect after sign-out on /pending + UI upgrade
+- [`afe8463`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/afe8463) — test(260602-nws): cover pending-screen sign-out navigation (RED)
+- [`7f8c737`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7f8c737) — docs(07-02): mark plan complete in STATE + ROADMAP
+- [`564651d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/564651d) — docs(07-02): summary - live RLS/signed-URL probe PASS, SEC-05 audited
+- [`feeb5e3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/feeb5e3) — feat(07-02): add live RLS/signed-URL security probe
+- [`929ec4f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/929ec4f) — docs(07-01): mark plan complete in STATE + ROADMAP
+- [`ee7b065`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ee7b065) — docs(07-01): summary - SEC-02 headers + Report-Only CSP verified live
+- [`d8c9344`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d8c9344) — feat(07-01): add SEC-02 headers + Report-Only CSP to vercel.json
+- [`b341fe2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b341fe2) — docs(07): finalize phase plan (decision citations, state, roadmap)
+- [`03b0534`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/03b0534) — docs(07): revise phase plans per checker feedback
+- [`c289ab4`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c289ab4) — docs(07): create phase plan
+- [`6007303`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6007303) — docs(phase-07): add validation strategy
+- [`ca8e547`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ca8e547) — docs(07): research phase domain
+- [`d0869fa`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d0869fa) — docs(state): record phase 07 context session
+- [`fcfc994`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/fcfc994) — docs(07): capture phase context
+- [`00c0939`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/00c0939) — docs(phase-06): evolve PROJECT.md after completion
+- [`77175d4`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/77175d4) — docs(phase-06): complete phase execution
+- [`b47e1f3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b47e1f3) — docs(06): add phase verification (human_needed — 10/10 automated)
+- [`9a9b5e2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9a9b5e2) — fix(06): WR-04 name magic-number 2000 row cap
+- [`821203f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/821203f) — fix(06): WR-03 initialLoadComplete useState → useRef
+- [`a2d656c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a2d656c) — fix(06): WR-02 validate sortColumn before query layer
+- [`a371222`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a371222) — fix(06): WR-01 isolate y-transform from sticky ancestor
+- [`9a3a144`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9a3a144) — fix(06): CR-02 single toast per pending batch
+- [`133bfde`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/133bfde) — fix(06): CR-01 unique channel name per hook instance
+- [`683331a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/683331a) — docs(06): add code review report
+- [`dcf766a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/dcf766a) — docs(06-05): complete plan — SUMMARY, STATE, ROADMAP updated
+- [`e0bcffb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/e0bcffb) — test(06-05): manual WCAG/Realtime UAT checklist (pending operator)
+- [`9608268`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9608268) — docs(06-05): record operator approval of A-01..A-08 in DESIGN-POLISH.md
+- [`ab8d642`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ab8d642) — feat(06-05): apply approved frontend-design polish (A-01..A-08)
+- [`8daec21`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8daec21) — docs(06-05): frontend-design polish proposal (propose-then-approve)
+- [`dc18172`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/dc18172) — docs(06-04): complete responsive layout + animation plan — UI-01/UI-02/UI-03
+- [`c47d6b8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c47d6b8) — feat(06-04): add initialLoadComplete gate + responsive swap (UI-01/UI-02)
+- [`5bf0098`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5bf0098) — feat(06-04): promote ArtifactTableRow to motion.div + WCAG upgrade (UI-02/UI-03)
+- [`2b18f1b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2b18f1b) — feat(06-04): add ArtifactCard mobile component + a11y tests (UI-01)
+- [`acd44ee`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/acd44ee) — docs(06-03): complete Realtime notification surface plan — hook + pill + wiring
+- [`55689f6`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/55689f6) — feat(06-03): wire useRealtimeArtifacts + NewArtifactPill into ArtifactTable
+- [`248db8b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/248db8b) — feat(06-03): NewArtifactPill component + render/a11y tests
+- [`da387a7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/da387a7) — feat(06-03): useRealtimeArtifacts hook + D-05 mock-channel tests
+- [`49948b6`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/49948b6) — docs(06-02): complete ToastContext + variant query cap plan
+- [`d024c14`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d024c14) — fix(06-02): wrap ArtifactTable tests with ToastProvider
+- [`81e1bc2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/81e1bc2) — feat(06-02): cap artifact-variants query (C-02 / D-08)
+- [`da76a3f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/da76a3f) — feat(06-02): wire ToastProvider; remove ArtifactTable local stack
+- [`2272e55`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2272e55) — test(06-02): RED+GREEN ToastContext provider + consumer hook
+- [`0847097`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0847097) — docs(06-01): complete plan — realtime publication + jest-axe foundation
+- [`deebe6d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/deebe6d) — chore(06-01): install jest-axe and wire vitest a11y matcher
+- [`03797cf`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/03797cf) — fix: remove orphaned primary Excel attachment
+- [`392434b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/392434b) — docs(06): create phase plan (5 plans, 4 waves)
+- [`70723dc`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/70723dc) — docs(06): add pattern map
+- [`b5e0130`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b5e0130) — docs(06): add research and validation strategy
+- [`ea16e53`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ea16e53) — docs(06): research phase — Realtime RLS model, stagger pattern, jest-axe wiring
+- [`8a1318b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8a1318b) — wip: phase 06 paused — context gathered, ready to plan
+- [`6ad0654`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6ad0654) — docs(state): record phase 06 context session
+- [`364d22a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/364d22a) — docs(06): capture phase context
+- [`9c53d2d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9c53d2d) — docs(06): approve UI design contract (2 weights, 4px spacing)
+- [`d9d2704`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d9d2704) — docs(06): revise UI contract per checker review
+- [`506229c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/506229c) — docs(06): UI design contract for Realtime and UI Polish
+- [`e74df8e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/e74df8e) — test(05): complete UAT - 4 passed, 1 skipped, 0 open issues
+- [`2e134b2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2e134b2) — fix(05): real download + de-Railway the dashboard
+- [`6c0451a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6c0451a) — docs(phase-05): validate Nyquist coverage (9/9 automated-green)
+- [`821576d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/821576d) — docs(phase-05): add security threat verification (13/13 closed)
+- [`2bfec70`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2bfec70) — docs(phase-05): evolve PROJECT.md + carry frontend-design to Phase 06
+- [`15f543e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/15f543e) — docs(phase-05): complete phase execution
+- [`b6fe110`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b6fe110) — test(05): persist human verification items as UAT
+- [`82130fb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/82130fb) — fix(05): resolve CR-01 render fetch + CR-02 quote
+- [`a3501e1`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a3501e1) — docs(05): add code review report
+- [`9a8353d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9a8353d) — docs(05-04): update STATE + ROADMAP + REQUIREMENTS (phase 05 complete)
+- [`3e224d7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3e224d7) — docs(05-04): complete search+filter+sort wave plan
+- [`d10f740`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d10f740) — feat(05-04): wire search+variants+sort into ArtifactTable (SEARCH-04)
+- [`ec1f3b2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ec1f3b2) — feat(05-04): ArtifactSearchBar + VariantFilterBar with tests
+- [`f6bd971`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f6bd971) — docs(05-03): update tracking after wave 3 (05-03)
+- [`4773a50`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4773a50) — docs(05-03): complete artifact table plan summary
+- [`d28e682`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d28e682) — feat(05-03): wire ArtifactTable as /dashboard landing
+- [`125175c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/125175c) — feat(05-03): ArtifactTable virtualizer + 4-state + infinite scroll
+- [`229db0b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/229db0b) — feat(05-03): ArtifactEmptyState + ArtifactTableRow
+- [`9d339e2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9d339e2) — docs(phase-05): update tracking after wave 2 (05-02)
+- [`f869f7e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f869f7e) — docs(05-02): complete data layer hooks plan summary
+- [`8aecb56`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8aecb56) — feat(05-02): gut useArtifacts mock fallback (TABLE-02)
+- [`905395a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/905395a) — feat(05-02): implement useDownloadArtifact hook
+- [`7a6dcfc`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7a6dcfc) — test(05-02): add failing tests for useDownloadArtifact
+- [`7b69209`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7b69209) — feat(05-02): implement useArtifactsInfinite hook
+- [`4132551`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4132551) — test(05-02): add failing tests for useArtifactsInfinite
+- [`2a25450`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2a25450) — docs(05-01): complete foundation plan — TanStack deps, helpers, types
+- [`5602b8e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5602b8e) — feat(05-01): implement useDebounce hook (no library dep)
+- [`74945cc`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/74945cc) — test(05-01): add failing test for useDebounce hook
+- [`502cdad`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/502cdad) — feat(05-01): add BillingArtifact type + searchNormalize + variantLabels
+- [`3e697c9`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3e697c9) — test(05-01): add failing tests for searchNormalize, variantLabels, BillingArtifact
+- [`9b40867`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9b40867) — feat(05-01): install TanStack deps + mount QueryClientProvider
+- [`f38cc85`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f38cc85) — docs(05): finalize phase plan (decision citations, state, roadmap waves)
+- [`9a51635`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9a51635) — docs(05): create artifact table and search phase plan
+- [`fc6b6dd`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/fc6b6dd) — docs(05): add validation strategy
+- [`ab57fdd`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ab57fdd) — docs(05): research phase domain
+- [`c77169e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c77169e) — chore: pin shell scripts to LF line endings
+- [`a3dad9c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a3dad9c) — chore: add SessionEnd handoff hook for cross-session context
+- [`5e9ffe5`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5e9ffe5) — docs(05): enrich context with live topology + refresh state
+- [`cc2869c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/cc2869c) — docs(state): record phase 05 context session
+- [`c8c6fbd`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c8c6fbd) — docs(05): capture phase context
+- [`b23b9aa`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b23b9aa) — docs(quick-260601-nzs): record Linetec Services branding
+- [`a3c8325`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a3c8325) — feat(ui): wire Linetec Services logo + brand gray
+- [`874111d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/874111d) — docs(04): close Phase 04 (auth/RBAC/deploy)
+- [`3c5322f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3c5322f) — docs(state): record live Supabase project topology + admin bootstrap
+- [`b2e2559`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b2e2559) — docs(quick-260601-ktw): record platform-aware hint fix
+- [`368e97d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/368e97d) — fix(ui): platform-aware command palette hint
+- [`6b92cfb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6b92cfb) — docs(quick-260601-k34): record auth-C token_hash flow
+- [`500cb27`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/500cb27) — feat(04): verify token_hash on password reset
+- [`810f8ed`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/810f8ed) — wip(04): pause — password-reset auth fix + 04-06 deploy close-out pending
+- [`7470966`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7470966) — docs(quick-260601-iqq): fix stale Living Ledger test file paths blocking pre-push gate
+- [`65c18f6`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/65c18f6) — test(260601-iqq): fix stale ledger path and E-flag assertion
+- [`233a389`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/233a389) — feat(04-06): run full pre-deploy gate; record verified results in runbook
+- [`9720a27`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9720a27) — feat(04-06): add Vercel deployment runbook and verify SPA rewrite
+- [`66a0915`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/66a0915) — docs(04-05): complete RBAC integration wave plan — UsersPage, ActivityPage removal, auth routes
+- [`5980d78`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5980d78) — feat(04-05): wire App.tsx — auth routes + RoleGuard around /admin/users
+- [`3c98727`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3c98727) — feat(04-05): delete ActivityPage + remove dead route, nav entry, and types (D-14)
+- [`ee7cdbf`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ee7cdbf) — feat(04-05): reconcile UsersPage — roles, last-admin guard, pending highlight, states
+- [`c2a75a5`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c2a75a5) — test(04-05): add failing test for UsersPage last-admin guard (RBAC-04)
+- [`fad861b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/fad861b) — docs(04-04): complete auth UI pages plan — hCaptcha, forgot/reset/pending pages
+- [`7595217`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7595217) — feat(04-04): create ResetPasswordPage — PASSWORD_RECOVERY gate + updateUser
+- [`4916197`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4916197) — feat(04-04): create ForgotPasswordPage and PendingApprovalPage
+- [`96e157f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/96e157f) — feat(04-04): extend LoginPage — hCaptcha, remember-me, forgot link, fix signup→/pending
+- [`6617d01`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6617d01) — docs(04-03): complete auth core plan — useAuth extended, AuthGuard hardened, RoleGuard created
+- [`ac709e6`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ac709e6) — feat(04-03): create RoleGuard with inline 403 for disallowed roles (RBAC-05, D-16)
+- [`a5b9c9b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a5b9c9b) — test(04-03): add failing RoleGuard tests for inline 403 and allow-list (RBAC-05)
+- [`c3995c1`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c3995c1) — feat(04-03): harden AuthGuard — remove USE_MOCK bypass, add pending-role routing
+- [`ec9cf9f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ec9cf9f) — test(04-03): add failing AuthGuard tests for pending routing and USE_MOCK removal (AUTH-06)
+- [`2e348c2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2e348c2) — feat(04-03): extend useAuth with captcha, remember-me, resetPassword, role helpers
+- [`5c757b8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5c757b8) — docs(phase-04): update tracking after wave 1 (recover 04-01)
+- [`6e2c6ee`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6e2c6ee) — docs(04-01): add foundation plan summary
+- [`735e7ac`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/735e7ac) — chore(04-01): install hCaptcha widget and document VITE_HCAPTCHA_SITEKEY
+- [`49a5247`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/49a5247) — feat(04-01): add ConfigError surface and gate main.tsx on isConfigured
+- [`1723bdf`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1723bdf) — feat(04-01): replace supabase.ts with fail-loud factory + Remember-Me swap
+- [`68f7bb7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/68f7bb7) — feat(04-01): reconcile types.ts to deployed schema (D-01/D-02)
+- [`816705c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/816705c) — test(04-01): add failing types contract test for D-01/D-02
+- [`ab8f970`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ab8f970) — chore(04-01): add vitest test infrastructure to portal-v2
+- [`bac881e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/bac881e) — docs(04-02): add auth/RBAC bootstrap runbook page
+- [`f30f010`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f30f010) — feat(04-02): append idempotent Phase 04 DDL to portal_schema.sql
+- [`4e3829a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4e3829a) — docs(04): record planning completion (6 plans, ready to execute)
+- [`8a8faa4`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8a8faa4) — docs(04): cite CONTEXT decisions in plan must_haves
+- [`b23fa35`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b23fa35) — docs(04): create phase plan (6 plans, 5 waves)
+- [`ddf0b32`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ddf0b32) — docs(04): add validation strategy
+- [`a306758`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a306758) — docs(04): research phase domain — auth, RBAC, and deployment
+- [`3e44ad3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3e44ad3) — docs(04): approve UI design contract (6/6 dimensions PASS)
+- [`72fd320`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/72fd320) — docs(04): fix UI-SPEC typography to 2-weight contract
+- [`0265860`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0265860) — docs(04): UI design contract for auth, RBAC, and deployment
+- [`b8e8f4f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b8e8f4f) — docs(state): record phase 04 context session
+- [`b275947`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b275947) — docs(04): capture phase context
+- [`129263b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/129263b) — docs(runbook): log 7b64e14 [skip ci] (#243)
+- [`7b64e14`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7b64e14) — docs(03): security audit SECURED (12/12 threats closed)
+- [`631ae25`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/631ae25) — docs(03): phase verification (human_needed: live CI proof) + UAT
+- [`92938f8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/92938f8) — docs(03-03): complete Publish artifacts to Supabase plan — SUMMARY + state
+- [`4444a43`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4444a43) — feat(03-03): wire Publish artifacts to Supabase step into weekly workflow
+- [`4e3314e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4e3314e) — docs(03-02): complete publish_artifacts_to_supabase plan (TDD GREEN + 34 tests)
+- [`a67c1f7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a67c1f7) — feat(03-02): implement publish_artifacts_to_supabase (GREEN)
+- [`6bb9793`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6bb9793) — test(03-02): add failing tests for publish_artifacts_to_supabase
+- [`20cd7c7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/20cd7c7) — docs(03): mark plan 03-01 complete (data layer live + committed)
+- [`37d9da5`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/37d9da5) — feat(03): add applied Supabase portal schema (recursion-safe RLS) + reconcile plan
+- [`37783b9`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/37783b9) — docs(03): finalize phase plans (decision traceability + state/roadmap)
+- [`bcecc83`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/bcecc83) — docs(03): reconcile RESEARCH.md test filename + mark open questions resolved
+- [`9f65680`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9f65680) — docs(03): create Supabase data layer phase plan
+- [`21f7bbc`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/21f7bbc) — docs(03): add pattern map
+- [`445ec8a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/445ec8a) — docs(03): add phase research + validation strategy
+- [`722faf3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/722faf3) — docs(state): record phase 3 context session
+- [`5145abb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5145abb) — docs(03): capture phase context
+- [`0f1c192`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0f1c192) — docs: create milestone v1.1 roadmap (5 phases)
+- [`df48422`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/df48422) — docs: define milestone v1.1 requirements
+- [`a775844`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a775844) — docs: synthesize v1.1 portal research
+- [`8c3c4b9`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8c3c4b9) — docs: start milestone v1.1 Portal Supabase-native Artifact Portal
+- [`6b42fb3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6b42fb3) — docs(quick-260528-mdc): warn-only ruff+mypy lint tooling
+- [`7f8dbfb`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7f8dbfb) — chore(ci): add warn-only ruff+mypy lint workflow
+- [`5defc59`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5defc59) — docs(quick-260528-lu6): reconcile AGENTS.md to lean pointer
+- [`d30be0e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d30be0e) — docs(agents): reconcile AGENTS.md to lean pointer
+- [`a3e0151`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a3e0151) — docs: move Living Ledger out of CLAUDE.md
+- [`1a1d2b8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1a1d2b8) — feat(workflow): activate Sub-project E (clean filenames)
+- [`cc968a8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/cc968a8) — revert(cleanup): legacy-hash cross-claimer dedup
+- [`e68be29`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/e68be29) — fix(cleanup): purge legacy-hash claimer dupes
+- [`2b890af`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2b890af) — fix(workflow): re-revert SUPABASE_HASH_STORE_AUTHORITATIVE to '0'
+- [`6245c45`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6245c45) — fix(billing_audit): DROP before lookup_attribution recreate; deploy-safety
+- [`650c638`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/650c638) — docs(runbook): log 42874f4 [skip ci] (#235)
+- [`d6e8167`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d6e8167) — docs(runbook): log d168171 [skip ci] (#238)
+- [`02482df`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/02482df) — docs(runbook): log 7077471 [skip ci] (#239)
+- [`7077471`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7077471) — Update weekly-excel-generation.yml
+- [`92bd625`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/92bd625) — docs(runbook): log 685e28c [skip ci] (#237)
+- [`d168171`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d168171) — chore: record v1.0.1 Phase 02 hotfix line (MILESTONES + retrospective)
+- [`25f6d11`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/25f6d11) — docs(phase-01.1): promote validation strategy to nyquist-compliant
+- [`3b35361`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/3b35361) — docs(phase-01): add Nyquist validation strategy (retroactive State B)
+- [`71c4f1c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/71c4f1c) — docs(phase-02): add/update validation strategy
+- [`423bfbe`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/423bfbe) — docs(phase-02): add security threat verification (24/24 closed)
+- [`903e81c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/903e81c) — fix(security): bind advanced_options to env var to block shell injection
+- [`5403539`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/5403539) — docs(phase-02): evolve PROJECT.md after phase completion
+- [`50140c7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/50140c7) — docs(phase-02): complete phase execution
+- [`0c97636`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0c97636) — test(02): persist human verification items as UAT
+- [`7729090`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7729090) — docs(02): add code review report
+- [`dde5d27`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/dde5d27) — docs(phase-02): update tracking after wave 2
+- [`dca8e77`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/dca8e77) — docs(02-06): complete plan 06 — remediation safety, activation, ledger
+- [`1f4669f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1f4669f) — docs(02-06): Living Ledger entry for Phase 2 gap-closure round (Plans 02-05/02-06)
+- [`2edacc8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2edacc8) — fix(02-06): WR-04/IN-02/IN-04 isolated sweep + counter clarity + datetime cleanup
+- [`d97514b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/d97514b) — feat(02-06): WR-02 make remediation reachable via advanced_options parser
+- [`f940687`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f940687) — docs(phase-02): update tracking after wave 1
+- [`ba8418d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ba8418d) — docs(02-05): complete bulk-prefetch rpc_missing graceful-degradation plan
+- [`0e79b0b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/0e79b0b) — feat(02-05): ATTRIBUTION_BULK_PREFETCH_FALLBACK degrades rpc_missing per-row (CR-01)
+- [`2e0a91c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2e0a91c) — fix(02-05): sanitize resolve_claimer prefetched-map lookup-key WR (WR-01)
+- [`6254832`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6254832) — feat(02-05): distinguish rpc_missing from fetch_failure in prefetch_attribution
+- [`1be2179`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1be2179) — fix: pass (wr,week) pairs to prefetch_attribution
+- [`abbc336`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/abbc336) — docs(02): mark gap-closure plans ready to execute (6 plans)
+- [`e27fe50`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/e27fe50) — docs(02): add gap-closure plans 02-05/02-06 (10 review findings)
+- [`4d5a211`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/4d5a211) — docs(02): add phase verification report (gaps_found 5/6)
+- [`22caf3f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/22caf3f) — docs(02): add code review report
+- [`2e41ae8`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2e41ae8) — docs(02-04): complete E re-activation runbook + Living Ledger plan
+- [`7103275`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7103275) — docs(02-04): append Phase 2 Living Ledger entry to CLAUDE.md
+- [`34593f2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/34593f2) — docs(02-04): add E re-activation + remediation runbook to operations.md
+- [`9c429b7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/9c429b7) — docs(02-03): complete claimer remediation plan
+- [`10ae102`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/10ae102) — chore(02-03): pin remediation flags default-OFF + document env vars
+- [`a822e8a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a822e8a) — feat(02-03): implement run_claimer_remediation + isolated dispatch
+- [`7104791`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7104791) — test(02-03): add failing RED tests for claimer remediation mode
+- [`2381923`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2381923) — docs(02-02): complete bulk prefetch wiring + scope removal plan
+- [`329e0b2`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/329e0b2) — chore(02-02): delete test_attribution_resolution_scope.py
+- [`c78a502`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c78a502) — feat(02-02): wire single bulk attribution prefetch, remove ATTRIBUTION_RESOLUTION_WEEKS
+- [`599086f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/599086f) — test(02-02): add failing RED tests for bulk-prefetch wiring
+- [`ebd2368`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/ebd2368) — docs(phase-02): update tracking after wave 1
+- [`c37dee3`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c37dee3) — chore: merge executor worktree (02-01)
+- [`1bf8efd`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1bf8efd) — docs(02-01): complete bulk attribution prefetch foundation plan
+- [`a581495`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a581495) — feat(02-01): add prefetch_attribution + map-aware resolve_claimer (D-03, D-04, D-13)
+- [`7077f2f`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7077f2f) — test(02-01): add PrefetchAttributionTests + ResolveClaimerMapAwareTests (RED)
+- [`48e9e62`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/48e9e62) — feat(02-01): add lookup_attribution_bulk RPC to schema.sql (D-01)
+- [`fae25c7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/fae25c7) — docs(02): finalize phase plan (decision-coverage citations + state/roadmap)
+- [`8c9a3fe`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8c9a3fe) — docs(02): revise phase plans per plan-checker (3 blockers + 4 warnings)
+- [`1897393`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1897393) — docs(02): create phase plan
+- [`985c020`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/985c020) — docs(02): add pattern map
+- [`82eb58c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/82eb58c) — docs(02): add research + validation strategy
+- [`fd8d1d7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/fd8d1d7) — docs(state): record phase 2 context session
+- [`6380e7b`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/6380e7b) — docs(02): capture phase context
+- [`685e28c`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/685e28c) — docs(planning): add Phase 2 attribution-fix spec + superpowers lineage (#236)
+- [`42874f4`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/42874f4) — fix(billing): revert SUPABASE_HASH_STORE_AUTHORITATIVE to 0 (#234)
+- [`67539ec`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/67539ec) — Update weekly-excel-generation.yml
+- [`c35480e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/c35480e) — docs(runbook): log b3f869c [skip ci] (#221)
+- [`1f597c1`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/1f597c1) — docs(runbook): log 8f546ae [skip ci] (#222)
+- [`26a2000`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/26a2000) — docs(runbook): log de62200 [skip ci] (#232)
+- [`de62200`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/de62200) — fix(billing): scope attribution pre-pass to recent weeks + raise run budget (#231)
+- [`8aeab88`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/8aeab88) — docs(runbook): log 4c141d8 [skip ci] (#224)
+- [`eb4478d`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/eb4478d) — docs(runbook): log b6011c0 [skip ci] (#230)
+- [`b6011c0`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/b6011c0) — feat(billing): Sub-project E — Supabase durable hash store + clean filenames (#229)
+- [`e105b2a`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/e105b2a) — docs(runbook): log 7e2b689 [skip ci] (#228)
+- [`7002fc0`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7002fc0) — docs(runbook): log 991b483 [skip ci] (#226)
+- [`7e2b689`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/7e2b689) — Create SECURITY.md for security policy and reporting
+- [`59feb97`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/59feb97) — docs(runbook): log acee949 [skip ci] (#227)
+- [`acee949`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/acee949) — Add CodeQL workflow for code analysis
+- [`991b483`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/991b483) — fix(billing): scope builders use __variant, not key substring (#225)
+- [`a649837`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a649837) — fix(security): require primary WR membership before PPP upload routing
+- [`f2fd8be`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/f2fd8be) — Add CI Checks workflow for PR smoke tests
+- [`2b9deb7`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/2b9deb7) — Initial plan
+- [`a57a79e`](https://github.com/Linetec-Services-LLC/Generate-Weekly-PDFs-DSR-Resiliency/commit/a57a79e) — chore(deps): bump python-dotenv in the pip group across 1 directory
+
+## Changed files
+
+### Workflows & CI
+
+- `.github/workflows/ci-checks.yml`
+- `.github/workflows/docs-changelog.yml`
+- `.github/workflows/github_workflows_notify.runbook_Version2.yml`
+- `.github/workflows/python-lint.yml`
+- `.github/workflows/weekly-excel-generation.yml`
+
+### GitHub config
+
+- `.github/copilot-instructions.md`
+
+### Python — entry points
+
+- `generate_weekly_pdfs.py`
+
+### Python — scripts/
+
+- `scripts/check_api_equality.py`
+- `scripts/check_facade_completeness.py`
+- `scripts/check_run_summary_structure.py`
+- `scripts/publish_artifacts_to_supabase.py`
+
+### Tests
+
+- `tests/golden/baseline_names.json`
+- `tests/golden/facade_allowlist.json`
+- `tests/golden/mypy_baseline.txt`
+- `tests/golden/mypy_baseline_count.txt`
+- `tests/golden/run_summary_baseline.json`
+- `tests/test_billing_audit_shadow.py`
+- `tests/test_claimer_remediation.py`
+- `tests/test_cron_monitor_config.py`
+- `tests/test_entrypoint_no_double_import.py`
+- `tests/test_facade_harness.py`
+- `tests/test_live_proxy_globals.py`
+- `tests/test_orphaned_primary_attachment.py`
+- `tests/test_performance_optimizations.py`
+- `tests/test_primary_claim_attribution.py`
+- `tests/test_publish_artifacts_to_supabase.py`
+- `tests/test_security_audit_followup.py`
+- `tests/test_sentry_frame_var_scrub.py`
+- `tests/test_sentry_init_idempotency.py`
+- `tests/test_sentry_log_sanitizer.py`
+- `tests/test_sentry_session_tags.py`
+- `tests/test_smartsheet_retry.py`
+- `tests/test_subcontractor_helper_shadow_rescue.py`
+- `tests/test_subcontractor_pricing.py`
+- `tests/test_subcontractor_primary_claim_attribution.py`
+- `tests/test_subproject_e_hash_store.py`
+- `tests/test_vac_crew_claim_attribution.py`
+- `tests/test_vac_crew_exclusion_leak.py`
+- `tests/validate_production_safety.py`
+
+### Portal (Express)
+
+- `portal/.env.example`
+- `portal/config/default.js`
+- `portal/lib/sentry.js`
+- `portal/middleware/auth.js`
+- `portal/middleware/security.js`
+- `portal/package-lock.json`
+- `portal/package.json`
+- `portal/public/css/styles.css`
+- `portal/public/dashboard.html`
+- `portal/public/index.html`
+- `portal/public/js/app.js`
+- `portal/public/js/auth.js`
+- `portal/public/js/dashboard-app.js`
+- `portal/public/js/excel-viewer.js`
+- `portal/routes/api.js`
+- `portal/routes/auth.js`
+- `portal/routes/health.js`
+- `portal/scripts/generate-secrets.js`
+- `portal/server.js`
+- `portal/services/artifactCache.js`
+- `portal/services/excel.js`
+- `portal/services/excelHtml.js`
+- `portal/services/github.js`
+- `portal/services/lruCache.js`
+- `portal/services/poller.js`
+- `portal/services/searchIndex.js`
+- `portal/tests/portal.test.js`
+- `portal/vitest.config.mjs`
+
+### Portal v2 (React)
+
+- `portal-v2/.env.example`
+- `portal-v2/index.html`
+- `portal-v2/package-lock.json`
+- `portal-v2/package.json`
+- `portal-v2/pnpm-lock.yaml`
+- `portal-v2/public/linetec-services-logo.png`
+- `portal-v2/src/App.tsx`
+- `portal-v2/src/components/admin/ActivityPage.tsx`
+- `portal-v2/src/components/admin/UsersPage.tsx`
+- `portal-v2/src/components/admin/__tests__/UsersPage.test.tsx`
+- `portal-v2/src/components/artifacts/ArtifactCard.tsx`
+- `portal-v2/src/components/artifacts/ArtifactEmptyState.tsx`
+- `portal-v2/src/components/artifacts/ArtifactSearchBar.tsx`
+- `portal-v2/src/components/artifacts/ArtifactTable.tsx`
+- `portal-v2/src/components/artifacts/ArtifactTableRow.tsx`
+- `portal-v2/src/components/artifacts/NewArtifactPill.tsx`
+- `portal-v2/src/components/artifacts/VariantFilterBar.tsx`
+- `portal-v2/src/components/artifacts/__tests__/ArtifactCard.test.tsx`
+- `portal-v2/src/components/artifacts/__tests__/ArtifactSearchBar.test.tsx`
+- `portal-v2/src/components/artifacts/__tests__/ArtifactTable.test.tsx`
+- `portal-v2/src/components/artifacts/__tests__/NewArtifactPill.test.tsx`
+- `portal-v2/src/components/artifacts/__tests__/VariantFilterBar.test.tsx`
+- `portal-v2/src/components/auth/AuthGuard.tsx`
+- `portal-v2/src/components/auth/ForgotPasswordPage.tsx`
+- `portal-v2/src/components/auth/LoginPage.tsx`
+- `portal-v2/src/components/auth/PendingApprovalPage.tsx`
+- `portal-v2/src/components/auth/ResetPasswordPage.tsx`
+- `portal-v2/src/components/auth/RoleGuard.tsx`
+- `portal-v2/src/components/auth/__tests__/AuthGuard.test.tsx`
+- `portal-v2/src/components/auth/__tests__/PendingApprovalPage.test.tsx`
+- `portal-v2/src/components/auth/__tests__/ResetPasswordPage.test.tsx`
+- `portal-v2/src/components/auth/__tests__/RoleGuard.test.tsx`
+- `portal-v2/src/components/dashboard/ArtifactExplorer.tsx`
+- `portal-v2/src/components/dashboard/ArtifactPanel.tsx`
+- `portal-v2/src/components/dashboard/CommandPalette.tsx`
+- `portal-v2/src/components/dashboard/DashboardPage.tsx`
+- `portal-v2/src/components/dashboard/FilePreview.tsx`
+- `portal-v2/src/components/dashboard/InteractiveExcelView.tsx`
+- `portal-v2/src/components/dashboard/StyledExcelView.tsx`
+- `portal-v2/src/components/layout/DashboardLayout.tsx`
+- `portal-v2/src/components/layout/Navbar.tsx`
+- `portal-v2/src/components/layout/Sidebar.tsx`
+- `portal-v2/src/components/ui/ConfigError.tsx`
+- `portal-v2/src/contexts/ToastContext.tsx`
+- `portal-v2/src/contexts/__tests__/ToastContext.test.tsx`
+- `portal-v2/src/hooks/__tests__/useArtifacts.test.ts`
+- `portal-v2/src/hooks/__tests__/useArtifactsInfinite.test.ts`
+- `portal-v2/src/hooks/__tests__/useDebounce.test.ts`
+- `portal-v2/src/hooks/__tests__/useDownloadArtifact.test.ts`
+- `portal-v2/src/hooks/__tests__/useRealtimeArtifacts.test.ts`
+- `portal-v2/src/hooks/useArtifacts.ts`
+- `portal-v2/src/hooks/useArtifactsInfinite.ts`
+- `portal-v2/src/hooks/useAuth.ts`
+- `portal-v2/src/hooks/useDebounce.ts`
+- `portal-v2/src/hooks/useDownloadArtifact.ts`
+- `portal-v2/src/hooks/usePlatform.ts`
+- `portal-v2/src/hooks/useRealtimeArtifacts.ts`
+- `portal-v2/src/hooks/useRuns.ts`
+- `portal-v2/src/lib/__tests__/platform.test.ts`
+- `portal-v2/src/lib/__tests__/searchNormalize.test.ts`
+- `portal-v2/src/lib/__tests__/types.test.ts`
+- `portal-v2/src/lib/__tests__/variantLabels.test.ts`
+- `portal-v2/src/lib/api.ts`
+- `portal-v2/src/lib/mockData.ts`
+- `portal-v2/src/lib/platform.ts`
+- `portal-v2/src/lib/searchNormalize.ts`
+- `portal-v2/src/lib/supabase.ts`
+- `portal-v2/src/lib/types.ts`
+- `portal-v2/src/lib/variantLabels.ts`
+- `portal-v2/src/main.tsx`
+- `portal-v2/src/test/setup.ts`
+- `portal-v2/supabase/schema.sql`
+- `portal-v2/tailwind.config.ts`
+- `portal-v2/tsconfig.app.json`
+- `portal-v2/vercel.json`
+- `portal-v2/vite.config.ts`
+- `portal-v2/vitest.config.ts`
+
+### Docs site
+
+- `website/blog/2026-05-25-4c141d8-featbilling-subproject-d-primary-workflo.md`
+- `website/blog/2026-05-25-8f546ae-chore-add-portable-claude-code-project-c.md`
+- `website/blog/2026-05-25-b3f869c-feat-vac-crew-claim-attribution-subproje.md`
+- `website/blog/2026-05-26-42874f4-fixbilling-revert-supabasehashstoreautho.md`
+- `website/blog/2026-05-26-685e28c-docsplanning-add-phase-2-attribution-fix.md`
+- `website/blog/2026-05-26-7e2b689-create-securitymd-for-security-policy-an.md`
+- `website/blog/2026-05-26-991b483-fixbilling-scope-builders-use-variant-no.md`
+- `website/blog/2026-05-26-acee949-add-codeql-workflow-for-code-analysis.md`
+- `website/blog/2026-05-26-b6011c0-featbilling-sub-project-e-supabase-durab.md`
+- `website/blog/2026-05-26-de62200-fixbilling-scope-attribution-pre-pass-to.md`
+- `website/blog/2026-05-27-7077471-update-weekly-excel-generationyml.md`
+- `website/blog/2026-05-27-d168171-chore-record-v101-phase-02-hotfix-line-m.md`
+- `website/blog/2026-05-29-7b64e14-docs03-security-audit-secured-1212-threa.md`
+- `website/blog/2026-06-06-d03453f-docsfrontend-clarify-viteusemock-usage-i.md`
+- `website/blog/2026-06-06-d3768d9-docsreview-daily-code-review-quality-aud.md`
+- `website/blog/2026-06-08-0014680-docs-start-milestone-v12-smartsheet-pyth.md`
+- `website/blog/2026-06-08-a5c3fc8-fix-pin-smartsheet-python-sdk-400-to-sto.md`
+- `website/blog/2026-06-09-47fe16d-fix-vac-crew-units-go-only-to-vac-crew-n.md`
+- `website/blog/2026-06-27-889ca2e-merge-pr-280-modularize-billing-engine-i.md`
+- `website/blog/2026-07-01-8c51a3c-fix-smartsheet-api-resilience-silent-fai.md`
+- `website/blog/2026-07-06-5fb5983-add-files-via-upload.md`
+- `website/blog/2026-07-06-de43b79-fix-defer-durable-group-hash-upsert-unti.md`
+- `website/docs/reference/environment.md`
+- `website/docs/runbook/auth-rbac-bootstrap.md`
+- `website/docs/runbook/operations.md`
+- `website/docs/runbook/vercel-deployment.md`
+- `website/package-lock.json`
+- `website/package.json`
+
+### Project docs
+
+- `.claude/agents/billing-audit-analyst.md`
+- `.claude/agents/excel-output-verifier.md`
+- `.claude/agents/smartsheet-pipeline-debugger.md`
+- `.claude/context-map.md`
+- `.claude/project-state.md`
+- `.claude/rules/billing-pipeline-guardrails.md`
+- `.claude/skills/force-week-regeneration/SKILL.md`
+- `.claude/skills/investigate-price-anomaly/SKILL.md`
+- `.claude/skills/run-billing-pipeline-locally/SKILL.md`
+- `.claude/writeback-pending/README.md`
+- `.planning/.continue-here.md`
+- `.planning/MILESTONES.md`
+- `.planning/PROJECT.md`
+- `.planning/REQUIREMENTS.md`
+- `.planning/RETROSPECTIVE.md`
+- `.planning/ROADMAP.md`
+- `.planning/STATE.md`
+- `.planning/debug/helper-generation-workflow-analysis-2026-05-20.md`
+- `.planning/debug/sub-helper-shadow-missing.md`
+- `.planning/phases/01-subcontractor-rate-logic-modification/01-VALIDATION.md`
+- `.planning/phases/01.1-subcontractor-helper-shadow-rescue/01.1-VALIDATION.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-01-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-01-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-02-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-02-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-03-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-03-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-04-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-04-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-05-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-05-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-06-PLAN.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-06-SUMMARY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-CONTEXT.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-DISCUSSION-LOG.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-HUMAN-UAT.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-PATTERNS.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-RESEARCH.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-REVIEW.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-SECURITY.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-SPEC.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-VALIDATION.md`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/02-VERIFICATION.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-01-PLAN.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-01-SUMMARY.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-02-PLAN.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-02-SUMMARY.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-03-PLAN.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-03-SUMMARY.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-CONTEXT.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-DISCUSSION-LOG.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-HUMAN-UAT.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-PATTERNS.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-RESEARCH.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-SECURITY.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-VALIDATION.md`
+- `.planning/phases/03-supabase-data-layer-foundation/03-VERIFICATION.md`
+- `.planning/phases/04-auth-rbac-and-deployment/.continue-here.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-01-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-01-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-02-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-02-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-03-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-03-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-04-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-04-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-05-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-05-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-06-PLAN.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-06-SUMMARY.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-CONTEXT.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-DISCUSSION-LOG.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-PATTERNS.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-RESEARCH.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-UI-SPEC.md`
+- `.planning/phases/04-auth-rbac-and-deployment/04-VALIDATION.md`
+- `.planning/phases/05-artifact-table-and-search/05-01-PLAN.md`
+- `.planning/phases/05-artifact-table-and-search/05-01-SUMMARY.md`
+- `.planning/phases/05-artifact-table-and-search/05-02-PLAN.md`
+- `.planning/phases/05-artifact-table-and-search/05-02-SUMMARY.md`
+- `.planning/phases/05-artifact-table-and-search/05-03-PLAN.md`
+- `.planning/phases/05-artifact-table-and-search/05-03-SUMMARY.md`
+- `.planning/phases/05-artifact-table-and-search/05-04-PLAN.md`
+- `.planning/phases/05-artifact-table-and-search/05-04-SUMMARY.md`
+- `.planning/phases/05-artifact-table-and-search/05-CONTEXT.md`
+- `.planning/phases/05-artifact-table-and-search/05-DISCUSSION-LOG.md`
+- `.planning/phases/05-artifact-table-and-search/05-HUMAN-UAT.md`
+- `.planning/phases/05-artifact-table-and-search/05-RESEARCH.md`
+- `.planning/phases/05-artifact-table-and-search/05-REVIEW.md`
+- `.planning/phases/05-artifact-table-and-search/05-SECURITY.md`
+- `.planning/phases/05-artifact-table-and-search/05-VALIDATION.md`
+- `.planning/phases/05-artifact-table-and-search/05-VERIFICATION.md`
+- `.planning/phases/06-realtime-and-ui-polish/.continue-here.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-01-PLAN.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-01-SUMMARY.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-02-PLAN.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-02-SUMMARY.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-03-PLAN.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-03-SUMMARY.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-04-PLAN.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-04-SUMMARY.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-05-PLAN.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-05-SUMMARY.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-CONTEXT.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-DESIGN-POLISH.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-DISCUSSION-LOG.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-HUMAN-UAT.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-PATTERNS.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-RESEARCH.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-REVIEW.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-UI-SPEC.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-VALIDATION.md`
+- `.planning/phases/06-realtime-and-ui-polish/06-VERIFICATION.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-01-PLAN.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-01-SUMMARY.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-02-PLAN.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-02-SUMMARY.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-03-PLAN.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-03-SUMMARY.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-04-PLAN.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-04-SUMMARY.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-CONTEXT.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-DISCUSSION-LOG.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-RESEARCH.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-SECURITY.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-UAT.md`
+- `.planning/phases/07-security-hardening-and-express-removal/07-VALIDATION.md`
+- `.planning/phases/08-smartsheet-python-sdk-4-0-0-compatibility-migration/08-RESEARCH.md`
+- `.planning/quick/260528-lu6-reconcile-agents-md-into-a-lean-pointer-/260528-lu6-PLAN.md`
+- `.planning/quick/260528-lu6-reconcile-agents-md-into-a-lean-pointer-/260528-lu6-SUMMARY.md`
+- `.planning/quick/260528-mdc-add-warn-only-ruff-and-mypy-lint-tooling/260528-mdc-PLAN.md`
+- `.planning/quick/260528-mdc-add-warn-only-ruff-and-mypy-lint-tooling/260528-mdc-SUMMARY.md`
+- `.planning/quick/260601-iqq-fix-stale-living-ledger-test-file-paths-/260601-iqq-PLAN.md`
+- `.planning/quick/260601-iqq-fix-stale-living-ledger-test-file-paths-/260601-iqq-SUMMARY.md`
+- `.planning/quick/260601-k34-auth-c-portal-resetpasswordpage-token-ha/260601-k34-PLAN.md`
+- `.planning/quick/260601-k34-auth-c-portal-resetpasswordpage-token-ha/260601-k34-SUMMARY.md`
+- `.planning/quick/260601-ktw-platform-aware-command-palette-shortcut-/260601-ktw-PLAN.md`
+- `.planning/quick/260601-ktw-platform-aware-command-palette-shortcut-/260601-ktw-SUMMARY.md`
+- `.planning/quick/260601-nzs-wire-linetec-services-logo-and-brand-col/260601-nzs-PLAN.md`
+- `.planning/quick/260601-nzs-wire-linetec-services-logo-and-brand-col/260601-nzs-SUMMARY.md`
+- `.planning/quick/260602-nws-fix-stuck-sign-out-on-pending-approval-s/260602-nws-PLAN.md`
+- `.planning/quick/260602-nws-fix-stuck-sign-out-on-pending-approval-s/260602-nws-SUMMARY.md`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/260603-mmc-PLAN-02.md`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/260603-mmc-PLAN.md`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/260603-mmc-RESEARCH.md`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/260603-mmc-SUMMARY.md`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/260603-mmc-VERIFICATION.md`
+- `.planning/quick/260605-tgi-fix-3-pylance-type-errors-in-generate-we/260605-tgi-PLAN.md`
+- `.planning/quick/260605-tgi-fix-3-pylance-type-errors-in-generate-we/260605-tgi-SUMMARY.md`
+- `.planning/quick/260608-gwm-pin-smartsheet-python-sdk-4-0-0-to-fix-c/260608-gwm-PLAN.md`
+- `.planning/quick/260608-gwm-pin-smartsheet-python-sdk-4-0-0-to-fix-c/260608-gwm-SUMMARY.md`
+- `.planning/research/ARCHITECTURE.md`
+- `.planning/research/FEATURES.md`
+- `.planning/research/PITFALLS.md`
+- `.planning/research/STACK.md`
+- `.planning/research/SUMMARY.md`
+- `.planning/reviews/2026-05-17-daily-code-review.md`
+- `.planning/threads/p01-hotfix-followups.md`
+- `.planning/v1.0-MILESTONE-AUDIT.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/AI_CONTEXT_RESUME.md`
+- `docs/CHANGELOG_CONTEXT.md`
+- `docs/DECISIONS.md`
+- `docs/PROJECT_BRIEF.md`
+- `docs/refactor-assessment-generate-weekly-pdfs.md`
+- `docs/superpowers/2026-05-21-subproject-b-helper-exclusion-UAT.md`
+- `docs/superpowers/RESUME-2026-05-21-current.md`
+- `docs/superpowers/plans/2026-05-25-subproject-e-supabase-hash-store.md`
+- `docs/superpowers/specs/2026-05-25-subproject-e-supabase-hash-store-design.md`
+- `memory-bank/activeContext.md`
+- `memory-bank/living-ledger.md`
+
+### Configuration
+
+- `.claude/context-policy.json`
+- `.devcontainer/devcontainer.json`
+- `.planning/HANDOFF.json`
+- `.planning/config.json`
+- `codecov.yml`
+- `pyproject.toml`
+- `scripts/package-lock.json`
+- `scripts/package.json`
+
+### Data files
+
+- `New Contract Rates copy regenerated again.csv`
+
+### Other
+
+- `.claude/hooks/session-context-inject.sh`
+- `.claude/hooks/session-handoff.sh`
+- `.gitattributes`
+- `.gitignore`
+- `.planning/phases/01.1-subcontractor-helper-shadow-rescue/.gitkeep`
+- `.planning/phases/02-attribution-bulk-prefetch-historical-claimer-remediation/.gitkeep`
+- `.planning/quick/260603-mmc-fix-missing-old-rates-csv-default-fileno/verify_sentry_mods.py`
+- `billing_audit/schema.sql`
+- `billing_audit/writer.py`
+- `pipeline/__init__.py`
+- `pipeline/attribution.py`
+- `pipeline/change_detection.py`
+- `pipeline/cleanup.py`
+- `pipeline/config.py`
+- `pipeline/discovery.py`
+- `pipeline/excel.py`
+- `pipeline/fetch.py`
+- `pipeline/grouping.py`
+- `pipeline/observability.py`
+- `pipeline/orchestrate.py`
+- `pipeline/pricing.py`
+- `pipeline/retry.py`
+- `pipeline/types.py`
+- `pipeline/upload.py`
+- `pipeline/utils.py`
+- `requirements-dev.txt`
+- `requirements.txt`
+- `scripts/check_mypy_delta.sh`
+- `scripts/run_6_gates.sh`
+- `scripts/security-probe.ts`
+- `supabase/portal_schema.sql`
