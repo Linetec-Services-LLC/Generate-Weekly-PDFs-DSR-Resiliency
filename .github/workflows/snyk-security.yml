@@ -72,10 +72,10 @@ jobs:
 
         # Runs Snyk Open Source (SCA) analysis and uploads result to Snyk.
         # Monitor only on push to master — per-PR monitoring is noisy and not meaningful.
-        # `|| true` keeps the job green if monitor upload transiently fails.
+        # Fail if monitor upload fails so Snyk does not keep a stale dependency snapshot.
       - name: Snyk Open Source monitor
         if: steps.preflight.outputs.enabled == 'true' && github.event_name == 'push'
-        run: snyk monitor --all-projects || true
+        run: snyk monitor --all-projects
 
         # Runs Snyk Infrastructure as Code (IaC) analysis and uploads result to Snyk.
         # Use || true to not fail the pipeline.
